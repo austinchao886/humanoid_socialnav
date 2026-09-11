@@ -19,6 +19,13 @@ Service-owned integration code lives under `services/`, deployment assets live
 under `deploy/`, and human-friendly commands live under `tools/run/`. Temporary
 compatibility symlinks keep the former paths working during migration.
 
+Run the complete repository check with a supported Python version (3.10–3.12
+recommended for the pinned robotics dependencies):
+
+```bash
+PYTHON_BIN=python3.12 ./tools/dev/check.sh
+```
+
 The existing `isaac-lab` container remains independent on GPU 0. `kimodo`
 generates immutable G1 references on GPU 1. `sonic-tracker` validates manually
 approved references and drives the simulator through simulation-only Unitree
@@ -34,8 +41,8 @@ topics are isolated on loopback (`lo`). The bridge refuses the physical
 
 ```bash
 cd /home/adcs-public-robot/Documents/socialnav_humanoid_ws/motion_pipeline
-./scripts/bootstrap.sh
-./scripts/start.sh
+./tools/bootstrap/bootstrap.sh
+./tools/dev/start.sh
 ```
 
 Start the existing Isaac container with the pinned official SONIC G1 asset and
@@ -123,7 +130,7 @@ three consecutive closed-loop executions with:
 
 ```bash
 cd /home/adcs-public-robot/Documents/socialnav_humanoid_ws
-WARM_RUNS=3 motion_pipeline/run_latency_acceptance.sh \
+WARM_RUNS=3 motion_pipeline/tools/acceptance/run_latency_acceptance.sh \
   wave-official-e2e-005-083aa901 \
   bow-e2e-004-retargeted-95pct \
   side-step-e2e-002-0aa18456
@@ -218,7 +225,7 @@ Export and compare resolved PhysX properties instead of relying on USD names:
   --output /socialnav_humanoid_ws/motion_exchange/diagnostics/asset_snapshot.json \
   --headless --device cuda:0
 
-python3 /socialnav_humanoid_ws/motion_pipeline/scripts/compare_asset_snapshots.py \
+python3 /socialnav_humanoid_ws/motion_pipeline/tools/analysis/compare_asset_snapshots.py \
   --baseline /socialnav_humanoid_ws/motion_exchange/diagnostics/asset_snapshot_sonic_official_g1.json \
   --candidate /socialnav_humanoid_ws/motion_exchange/diagnostics/asset_snapshot.json \
   --output /socialnav_humanoid_ws/motion_exchange/diagnostics/asset_compatibility.json
@@ -226,7 +233,7 @@ python3 /socialnav_humanoid_ws/motion_pipeline/scripts/compare_asset_snapshots.p
 
 For axis/dynamic calibration, launch the custom task only with
 `--fixed-root-lowcmd-diagnostic --bootstrap-support fixed`, then use
-`scripts/lowcmd_semantics_probe.py` with amplitude no greater than `0.1 rad`.
+`tools/analysis/lowcmd_semantics_probe.py` with amplitude no greater than `0.1 rad`.
 The diagnostic endpoint never advertises `READY` and the supervisor rejects it.
 Qualification requires representative leg, waist, shoulder, elbow, and wrist
 response comparisons—not a single joint or fixed-root standing result.

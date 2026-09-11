@@ -2,12 +2,18 @@ services:
   kimodo:
     volumes:
       - ./motion_pipeline:/usr/local/lib/python3.10/dist-packages/motion_pipeline:ro
+      - ./packages/motion_contracts/motion_contracts:/usr/local/lib/python3.10/dist-packages/motion_contracts:ro
+      - ./services/motion_generator/motion_generator:/usr/local/lib/python3.10/dist-packages/motion_generator:ro
 
   sonic-tracker:
     volumes:
       - ./motion_pipeline:/usr/local/lib/python3.10/dist-packages/motion_pipeline:ro
+      - ./packages/motion_contracts/motion_contracts:/usr/local/lib/python3.10/dist-packages/motion_contracts:ro
+      - ./services/sonic_tracker/sonic_tracker:/usr/local/lib/python3.10/dist-packages/sonic_tracker:ro
 
   video-generator:
     volumes:
       - ./motion_pipeline:/opt/motion_pipeline/motion_pipeline:ro
+      - ./packages/motion_contracts/motion_contracts:/opt/motion_pipeline/packages/motion_contracts/motion_contracts:ro
+      - ./services/video_generator/video_generator:/opt/motion_pipeline/services/video_generator/video_generator:ro
       - ./services/video_generator:/opt/social-motion/services/video_generator:ro

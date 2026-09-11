@@ -11,6 +11,8 @@ COPY vendor/kimodo/MotionCorrection ./MotionCorrection
 RUN rm -f /usr/local/bin/cmake && SKIP_MOTION_CORRECTION_IN_SETUP=1 python -m pip install -r docker_requirements.txt
 COPY pyproject.toml /pipeline/pyproject.toml
 COPY motion_pipeline /pipeline/motion_pipeline
+COPY packages /pipeline/packages
+COPY services /pipeline/services
 RUN python -m pip install "cyclonedds==0.10.2" /pipeline
 RUN python -m pip install "mujoco==3.3.7"
 ENV PYTHONPATH=/unitree_sdk2_python

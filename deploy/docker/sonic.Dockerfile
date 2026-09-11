@@ -22,6 +22,8 @@ RUN wget -q https://github.com/microsoft/onnxruntime/releases/download/v1.22.0/o
 COPY vendor/GR00T-WholeBodyControl /sonic
 COPY pyproject.toml /pipeline/pyproject.toml
 COPY motion_pipeline /pipeline/motion_pipeline
+COPY packages /pipeline/packages
+COPY services /pipeline/services
 RUN python3 -m pip install "cyclonedds==0.10.2" /pipeline
 ENV PYTHONPATH=/unitree_sdk2_python SONIC_ROOT=/sonic/gear_sonic_deploy
 ENV TensorRT_ROOT=/usr onnxruntime_ROOT=/opt/onnxruntime

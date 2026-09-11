@@ -7,7 +7,7 @@ import time
 import uuid
 from pathlib import Path
 
-from .protocol import (
+from motion_contracts.protocol import (
     CONTROL_TOPIC, GENERATE_TOPIC, STATUS_TOPIC, VIDEO_GENERATE_TOPIC,
     ControlCommand, GenerateCommand, VideoGenerateCommand, to_json,
 )
@@ -35,7 +35,7 @@ def main() -> None:
     control.add_argument("motion_id")
     sub.add_parser("listen")
     args = parser.parse_args()
-    from .dds_transport import JsonDDS
+    from .runtime.dds_transport import JsonDDS
 
     dds = JsonDDS(args.domain, args.interface)
     if args.command == "generate":
@@ -43,7 +43,7 @@ def main() -> None:
         dds.publish(GENERATE_TOPIC, to_json(cmd))
         print(to_json(cmd))
     elif args.command == "generate-video":
-        from .video_pipeline import inspect_video
+        from video_generator.pipeline import inspect_video
 
         video_path = os.path.abspath(args.video_path)
         info = inspect_video(Path(video_path))

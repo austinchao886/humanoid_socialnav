@@ -5,18 +5,33 @@ requires-python = ">=3.10"
 dependencies = ["numpy>=1.24", "pexpect>=4.9"]
 
 [project.scripts]
-motion-service = "motion_pipeline.generator_service:main"
-video-motion-service = "motion_pipeline.video_generator_service:main"
-video-assets-check = "motion_pipeline.video_assets:main"
-sonic-supervisor = "motion_pipeline.sonic_supervisor:main"
+motion-service = "motion_generator.service:main"
+video-motion-service = "video_generator.service:main"
+video-assets-check = "video_generator.assets:main"
+sonic-supervisor = "sonic_tracker.supervisor:main"
 motion-cli = "motion_pipeline.cli:main"
-motion-validate = "motion_pipeline.validator:main"
+motion-validate = "motion_contracts.validator:main"
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests/unit"]
 
 [tool.setuptools.packages.find]
-include = ["motion_pipeline*"]
+where = [
+  ".",
+  "packages/motion_contracts",
+  "services/isaac_runtime",
+  "services/motion_generator",
+  "services/sonic_tracker",
+  "services/video_generator",
+]
+include = [
+  "motion_pipeline*",
+  "motion_contracts*",
+  "isaac_runtime*",
+  "motion_generator*",
+  "sonic_tracker*",
+  "video_generator*",
+]
 
 [build-system]
 requires = ["setuptools>=68"]

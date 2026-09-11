@@ -2,6 +2,10 @@
 !pyproject.toml
 !motion_pipeline/
 !motion_pipeline/**
+!packages/
+!packages/**
+!services/
+!services/**
 !vendor/
 !vendor/kimodo/
 !vendor/kimodo/docker_requirements.txt

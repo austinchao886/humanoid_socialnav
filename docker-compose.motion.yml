@@ -20,16 +20,11 @@ services:
       DDS_DOMAIN: "42"
       DDS_INTERFACE: ${MOTION_DDS_INTERFACE:-lo}
     volumes:
-      - ../motion_exchange:/motion_exchange
-      - ../unitree_sdk2_python:/unitree_sdk2_python:ro
-      - ${HOME}/.cache/huggingface:/cache/huggingface
+      - ${MOTION_EXCHANGE_HOST:-../motion_exchange}:/motion_exchange
+      - ${UNITREE_SDK2_PYTHON_HOST:-../unitree_sdk2_python}:/unitree_sdk2_python:ro
+      - ${HF_CACHE_HOST:-${HOME}/.cache/huggingface}:/cache/huggingface
       - ./deploy/config/cyclonedds-localhost.xml:/etc/cyclonedds-localhost.xml:ro
-      - ./motion_pipeline/artifact.py:/usr/local/lib/python3.10/dist-packages/motion_pipeline/artifact.py:ro
-      - ./motion_pipeline/validator.py:/usr/local/lib/python3.10/dist-packages/motion_pipeline/validator.py:ro
-      - ./motion_pipeline/generator_service.py:/usr/local/lib/python3.10/dist-packages/motion_pipeline/generator_service.py:ro
-      - ./motion_pipeline/latency.py:/usr/local/lib/python3.10/dist-packages/motion_pipeline/latency.py:ro
-      - ./motion_pipeline/deterministic.py:/usr/local/lib/python3.10/dist-packages/motion_pipeline/deterministic.py:ro
-      - ./vendor/GR00T-WholeBodyControl/gear_sonic/data/assets/robot_description:/sonic_robot_description:ro
+      - ${GROOT_WBC_HOST:-./vendor/GR00T-WholeBodyControl}/gear_sonic/data/assets/robot_description:/sonic_robot_description:ro
     deploy:
       resources:
         reservations:
@@ -72,29 +67,28 @@ services:
         python /opt/social-motion/services/video_generator/adapters/gmr_adapter.py
         --input {canonical} --output {robot} --preview {preview}
     volumes:
-      - ../motion_exchange:/motion_exchange
+      - ${MOTION_EXCHANGE_HOST:-../motion_exchange}:/motion_exchange
       # Preserve host absolute paths published by motion-cli for files inside
       # this workspace, while keeping the source tree read-only.
-      - ..:/home/adcs-public-robot/Documents/socialnav_humanoid_ws:ro
+      - ${SOCIALNAV_WORKSPACE_HOST:-..}:/home/adcs-public-robot/Documents/socialnav_humanoid_ws:ro
       # Pin this service to the Compose checkout even when it is launched from
       # a Git worktree with a different directory name.
       - .:/home/adcs-public-robot/Documents/socialnav_humanoid_ws/motion_pipeline:ro
-      - ../unitree_sdk2_python:/unitree_sdk2_python:ro
+      - ${UNITREE_SDK2_PYTHON_HOST:-../unitree_sdk2_python}:/unitree_sdk2_python:ro
       # GEM and GMR are pinned and installed in the image.  Do not shadow
       # them with read-only repo mounts: Docker must create the nested
       # checkpoint bind-mount targets below during container startup.
-      - ../motion_models:/models:ro
-      - ../motion_models/hf-gvhmr/hmr2/epoch=10-step=25000.ckpt:/opt/GEM/inputs/checkpoints/hmr2/epoch=10-step=25000.ckpt:ro
-      - ../motion_models/hf-gvhmr/vitpose/vitpose-h-multi-coco.pth:/opt/GEM/inputs/checkpoints/vitpose/vitpose-h-multi-coco.pth:ro
-      - ../motion_models/hf-gvhmr/yolo/yolov8x.pt:/opt/GEM/yolov8x.pt:ro
-      - ../motion_models/body_models/smplx/SMPLX_NEUTRAL.npz:/opt/GEM/inputs/checkpoints/body_models/smplx/SMPLX_NEUTRAL.npz:ro
-      - ./vendor/GR00T-WholeBodyControl/gear_sonic/trl/utils/smplx/body_model/coco_aug_dict.pth:/opt/GEM/gem/utils/body_model/coco_aug_dict.pth:ro
-      - ./vendor/GR00T-WholeBodyControl/gear_sonic/trl/utils/smplx/body_model/smplx2smpl_sparse.pt:/opt/GEM/gem/utils/body_model/smplx2smpl_sparse.pt:ro
-      - ./vendor/GR00T-WholeBodyControl/gear_sonic/trl/utils/smplx/body_model/smpl_coco17_J_regressor.pt:/opt/GEM/gem/utils/body_model/smpl_coco17_J_regressor.pt:ro
-      - ./vendor/GR00T-WholeBodyControl/gear_sonic/trl/utils/smplx/body_model/smplx_verts437.pt:/opt/GEM/gem/utils/body_model/smplx_verts437.pt:ro
-      - ./vendor/GR00T-WholeBodyControl/gear_sonic/trl/utils/smplx/body_model/smpl_neutral_J_regressor.pt:/opt/GEM/gem/utils/body_model/smpl_neutral_J_regressor.pt:ro
+      - ${MOTION_MODELS_HOST:-../motion_models}:/models:ro
+      - ${MOTION_MODELS_HOST:-../motion_models}/hf-gvhmr/hmr2/epoch=10-step=25000.ckpt:/opt/GEM/inputs/checkpoints/hmr2/epoch=10-step=25000.ckpt:ro
+      - ${MOTION_MODELS_HOST:-../motion_models}/hf-gvhmr/vitpose/vitpose-h-multi-coco.pth:/opt/GEM/inputs/checkpoints/vitpose/vitpose-h-multi-coco.pth:ro
+      - ${MOTION_MODELS_HOST:-../motion_models}/hf-gvhmr/yolo/yolov8x.pt:/opt/GEM/yolov8x.pt:ro
+      - ${MOTION_MODELS_HOST:-../motion_models}/body_models/smplx/SMPLX_NEUTRAL.npz:/opt/GEM/inputs/checkpoints/body_models/smplx/SMPLX_NEUTRAL.npz:ro
+      - ${GROOT_WBC_HOST:-./vendor/GR00T-WholeBodyControl}/gear_sonic/trl/utils/smplx/body_model/coco_aug_dict.pth:/opt/GEM/gem/utils/body_model/coco_aug_dict.pth:ro
+      - ${GROOT_WBC_HOST:-./vendor/GR00T-WholeBodyControl}/gear_sonic/trl/utils/smplx/body_model/smplx2smpl_sparse.pt:/opt/GEM/gem/utils/body_model/smplx2smpl_sparse.pt:ro
+      - ${GROOT_WBC_HOST:-./vendor/GR00T-WholeBodyControl}/gear_sonic/trl/utils/smplx/body_model/smpl_coco17_J_regressor.pt:/opt/GEM/gem/utils/body_model/smpl_coco17_J_regressor.pt:ro
+      - ${GROOT_WBC_HOST:-./vendor/GR00T-WholeBodyControl}/gear_sonic/trl/utils/smplx/body_model/smplx_verts437.pt:/opt/GEM/gem/utils/body_model/smplx_verts437.pt:ro
+      - ${GROOT_WBC_HOST:-./vendor/GR00T-WholeBodyControl}/gear_sonic/trl/utils/smplx/body_model/smpl_neutral_J_regressor.pt:/opt/GEM/gem/utils/body_model/smpl_neutral_J_regressor.pt:ro
       - ./deploy/config/cyclonedds-localhost.xml:/etc/cyclonedds-localhost.xml:ro
-      - ./motion_pipeline:/opt/motion_pipeline/motion_pipeline:ro
       - ./services/video_generator:/opt/social-motion/services/video_generator:ro
     deploy:
       resources:
@@ -165,16 +159,12 @@ services:
       # forward-compat libcuda fails with error 804 on this GeForce host.
       LD_LIBRARY_PATH: /lib/x86_64-linux-gnu
     volumes:
-      - ../motion_exchange:/motion_exchange
-      - ../unitree_sdk2_python:/unitree_sdk2_python:ro
+      - ${MOTION_EXCHANGE_HOST:-../motion_exchange}:/motion_exchange
+      - ${UNITREE_SDK2_PYTHON_HOST:-../unitree_sdk2_python}:/unitree_sdk2_python:ro
       # TensorRT writes its GPU-specific engine cache beside the ONNX files.
-      - ./vendor/GR00T-WholeBodyControl/gear_sonic_deploy/policy:/sonic/gear_sonic_deploy/policy:rw
-      - ./vendor/GR00T-WholeBodyControl/gear_sonic_deploy/planner:/sonic/gear_sonic_deploy/planner:rw
+      - ${GROOT_WBC_HOST:-./vendor/GR00T-WholeBodyControl}/gear_sonic_deploy/policy:/sonic/gear_sonic_deploy/policy:rw
+      - ${GROOT_WBC_HOST:-./vendor/GR00T-WholeBodyControl}/gear_sonic_deploy/planner:/sonic/gear_sonic_deploy/planner:rw
       - ./deploy/config/cyclonedds-localhost.xml:/etc/cyclonedds-localhost.xml:ro
-      - ./motion_pipeline/sonic_supervisor.py:/usr/local/lib/python3.10/dist-packages/motion_pipeline/sonic_supervisor.py:ro
-      - ./motion_pipeline/latency.py:/usr/local/lib/python3.10/dist-packages/motion_pipeline/latency.py:ro
-      - ./motion_pipeline/performance.py:/usr/local/lib/python3.10/dist-packages/motion_pipeline/performance.py:ro
-      - ./motion_pipeline/validator.py:/usr/local/lib/python3.10/dist-packages/motion_pipeline/validator.py:ro
     deploy:
       resources:
         reservations:
@@ -196,7 +186,7 @@ services:
     working_dir: /socialnav_humanoid_ws/unitree_sim_isaaclab
     entrypoint: ["/bin/bash", "-lc"]
     command:
-      - exec /socialnav_humanoid_ws/motion_pipeline/scripts/run_prewarmed_isaac_runner.sh
+      - exec /socialnav_humanoid_ws/motion_pipeline/tools/runtime/run_prewarmed_isaac_runner.sh
     environment:
       ACCEPT_EULA: "Y"
       PRIVACY_CONSENT: "Y"
@@ -217,7 +207,7 @@ services:
       SIM_LOWCMD_TOPIC: rt/socialnav_sim/g1/lowcmd
       OMNI_SERVER: http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.5
     volumes:
-      - ..:/socialnav_humanoid_ws
+      - ${SOCIALNAV_WORKSPACE_HOST:-..}:/socialnav_humanoid_ws
       # The parent mount supplies sibling Isaac/SDK/model workspaces. This
       # nested mount selects the exact motion-pipeline checkout being tested.
       - .:/socialnav_humanoid_ws/motion_pipeline:ro
@@ -275,7 +265,7 @@ services:
       CUDA_VISIBLE_DEVICES: "0"
       PYTHONPATH: /socialnav_humanoid_ws/unitree_sim_isaaclab:/socialnav_humanoid_ws/unitree_sdk2_python
     volumes:
-      - ..:/socialnav_humanoid_ws
+      - ${SOCIALNAV_WORKSPACE_HOST:-..}:/socialnav_humanoid_ws
       - .:/socialnav_humanoid_ws/motion_pipeline:ro
       - ./deploy/config/isaaclab.sonic_streaming.kit:/isaac-lab/apps/isaaclab.sonic_streaming.kit:ro
       - ../.cache/isaac-sim-visualizer/cache/kit:/isaac-sim/kit/cache

@@ -4,6 +4,7 @@
 !README.md
 !motion_pipeline/
 !motion_pipeline/**
+!packages/
+!packages/**
 !services/
-!services/video_generator/
-!services/video_generator/**
+!services/**
