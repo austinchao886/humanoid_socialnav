@@ -1159,7 +1159,7 @@ class SonicSupervisor:
         self.runtime_mode = "STOPPED"
 
     def _enter_joystick_locomotion(
-        self, runtime_request: dict, session_id: str, timeout: float = 30.0
+        self, runtime_request: dict, session_id: str, timeout: float = 180.0
     ) -> None:
         """Hand LowCmd generation to the native Unitree gamepad planner."""
 

@@ -214,7 +214,7 @@ def test_supervisor_enters_native_joystick_planner_mode(tmp_path, monkeypatch):
     assert supervisor.runtime_mode == "JOYSTICK_LOCOMOTION"
     assert written[-1]["state"] == "INTERACTIVE"
     assert written[-1]["interactive_source"] == "unitree_wireless_remote"
-    assert waited == [("same-session", "INTERACTIVE", 30.0)]
+    assert waited == [("same-session", "INTERACTIVE", 180.0)]
     assert len(expected_patterns) == 2
 
 
