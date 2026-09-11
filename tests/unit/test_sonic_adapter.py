@@ -146,3 +146,73 @@ def test_supervisor_accepts_persistent_ready_standing(tmp_path, monkeypatch):
     )
 
     assert supervisor._require_isaac_ready()["session_id"] == "persistent-session"
+
+
+def test_supervisor_accepts_interactive_runtime_for_reference_preemption(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setenv("SONIC_ASSET_PROFILE", "sonic_official_g1")
+    monkeypatch.setenv("SONIC_ISAAC_TASK", "Isaac-Flat-G129-SONIC-Official")
+    supervisor = SonicSupervisor(tmp_path, tmp_path, object())
+    supervisor.isaac_status_path.write_text(
+        json.dumps(
+            {
+                "task": "Isaac-Flat-G129-SONIC-Official",
+                "asset_profile": "sonic_official_g1",
+                "asset_profile_qualified": True,
+                "diagnostic_only": False,
+                "state": "INTERACTIVE",
+                "updated_epoch_s": time.time(),
+                "session_id": "interactive-session",
+            }
+        )
+    )
+
+    assert supervisor._require_isaac_ready()["session_id"] == "interactive-session"
+
+
+def test_supervisor_enters_native_joystick_planner_mode(tmp_path, monkeypatch):
+    supervisor = SonicSupervisor(tmp_path, tmp_path, object())
+
+    class FakeChild:
+        def __init__(self):
+            self.sent = []
+
+        def isalive(self):
+            return True
+
+        def send(self, value):
+            self.sent.append(value)
+
+    child = FakeChild()
+    supervisor.child = child
+    expected_patterns = []
+    written = []
+    waited = []
+    monkeypatch.setattr(
+        supervisor,
+        "_expect_or_abort",
+        lambda patterns, timeout: expected_patterns.append((patterns, timeout)),
+    )
+    monkeypatch.setattr(
+        supervisor, "_write_runtime_request", lambda payload: written.append(dict(payload))
+    )
+    monkeypatch.setattr(
+        supervisor,
+        "_wait_for_isaac_runtime_mode",
+        lambda session_id, state, timeout: waited.append((session_id, state, timeout)),
+    )
+
+    request = {
+        "state": "IDLE",
+        "request_id": "request",
+        "motion_id": "motion",
+    }
+    supervisor._enter_joystick_locomotion(request, "same-session")
+
+    assert child.sent == ["\x1d"]
+    assert supervisor.runtime_mode == "JOYSTICK_LOCOMOTION"
+    assert written[-1]["state"] == "INTERACTIVE"
+    assert written[-1]["interactive_source"] == "unitree_wireless_remote"
+    assert waited == [("same-session", "INTERACTIVE", 30.0)]
+    assert len(expected_patterns) == 2

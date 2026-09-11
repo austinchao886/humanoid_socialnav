@@ -5,7 +5,7 @@ import pytest
 from isaac_runtime.lifecycle import require_execution_ready
 
 
-@pytest.mark.parametrize("state", ["READY", "READY_STANDING"])
+@pytest.mark.parametrize("state", ["READY", "READY_STANDING", "INTERACTIVE"])
 def test_execution_ready_accepts_cold_and_persistent_idle_states(state):
     status = {
         "state": state,

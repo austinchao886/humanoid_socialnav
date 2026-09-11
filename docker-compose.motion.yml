@@ -157,7 +157,12 @@ services:
       # monitored post-hold and discards the process after any failed/unsafe
       # execution, so reuse never crosses a safety failure.
       SONIC_PERSISTENT_PROCESS: "1"
-      SONIC_ENABLE_PLANNER: "0"
+      # Interactive runtime: the Unitree wireless remote drives the SONIC
+      # locomotion planner while idle; approved references preempt it through
+      # the supervisor-owned InterfaceManager mode switch.
+      SONIC_ENABLE_PLANNER: ${SONIC_ENABLE_PLANNER:-1}
+      SONIC_INTERACTIVE_RUNTIME: ${SONIC_INTERACTIVE_RUNTIME:-1}
+      SONIC_STANDING_MOTION_ID: ${SONIC_STANDING_MOTION_ID:-isaac-neutral-v1}
       # Keep only the supported ZMQ debug output; avoid requesting additional
       # output backends during latency acceptance.
       SONIC_OUTPUT_TYPE: zmq

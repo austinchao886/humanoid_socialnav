@@ -13,6 +13,7 @@ class RuntimeState(str, Enum):
     SUPPORTED_BOOTSTRAP = "SUPPORTED_BOOTSTRAP"
     READY = "READY"  # Compatibility: SONIC has not taken over yet.
     READY_STANDING = "READY_STANDING"
+    INTERACTIVE = "INTERACTIVE"
     SETTLING = "SETTLING"
     GROUNDING = "GROUNDING"
     EXECUTING = "EXECUTING"
@@ -26,7 +27,11 @@ class RuntimeState(str, Enum):
 
 
 EXECUTION_READY_STATES = frozenset(
-    {RuntimeState.READY.value, RuntimeState.READY_STANDING.value}
+    {
+        RuntimeState.READY.value,
+        RuntimeState.READY_STANDING.value,
+        RuntimeState.INTERACTIVE.value,
+    }
 )
 TERMINAL_FAILURE_STATES = frozenset(
     {

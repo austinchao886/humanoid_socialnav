@@ -167,6 +167,7 @@ class SonicSupervisor:
         self.loaded_motion_indexes: dict[str, int] = {}
         self.current_motion_index = 0
         self.control_started = False
+        self.runtime_mode = "STOPPED"
         self.child_log_handle = None
 
     def run(self) -> None:
@@ -200,6 +201,25 @@ class SonicSupervisor:
             f"asset_profile={self.required_asset_profile} ",
             flush=True,
         )
+        if (
+            self.persistent_process
+            and os.getenv("SONIC_INTERACTIVE_RUNTIME", "1")
+            not in {"0", "false", "False"}
+            and os.getenv("SONIC_ENABLE_PLANNER", "0")
+            not in {"0", "false", "False"}
+        ):
+            try:
+                self._bootstrap_interactive_runtime()
+            except Exception as exc:
+                # Keep the DDS supervisor available. A later approve_execute
+                # can still cold-start the controller, while the bootstrap
+                # failure remains explicit in logs instead of being hidden.
+                print(
+                    "[sonic-supervisor] interactive bootstrap failed: "
+                    f"{exc}",
+                    flush=True,
+                )
+                self._stop()
         while True:
             raw, received_monotonic, received_at = self.queue.get()
             queue_wait_s = time.monotonic() - received_monotonic
@@ -441,12 +461,6 @@ class SonicSupervisor:
             else artifact / "sonic_execution.log"
         )
         selection = None
-        decoder = self.sonic_root / "policy/release/model_decoder.onnx"
-        encoder = self.sonic_root / "policy/release/model_encoder.onnx"
-        obs = self.sonic_root / "policy/release/observation_config.yaml"
-        planner = self.sonic_root / "planner/target_vel/V2/planner_sonic.onnx"
-        network_interface = os.getenv("SONIC_INTERFACE", "lo")
-        output_type = os.getenv("SONIC_OUTPUT_TYPE", "all")
         gpu_lock = ResourceLock(self.exchange / ".runtime/gpu1.lock").acquire()
         started = time.monotonic()
         try:
@@ -472,81 +486,12 @@ class SonicSupervisor:
                 "SONIC_ENABLE_PLANNER", "0"
             ) not in {"0", "false", "False"}
             if not reused_process:
-                if self.persistent_process:
-                    selection = self._prepare_persistent_reference_pool(
-                        command.motion_id
-                    )
-                else:
-                    selection_root = self.exchange / ".sonic-selection"
-                    selection_root.mkdir(exist_ok=True)
-                    selection = Path(
-                        tempfile.mkdtemp(prefix="run-", dir=selection_root)
-                    )
-                    prepare_sonic_reference_view(
-                        artifact, selection / command.motion_id
-                    )
-                command_values = [
-                    executable,
-                    network_interface,
-                    decoder,
-                    selection,
-                    "--obs-config",
-                    obs,
-                    "--encoder-file",
-                    encoder,
-                ]
-                if planner_enabled:
-                    command_values.extend(("--planner-file", planner))
-                command_values.extend(
-                    (
-                        "--input-type", "keyboard",
-                        "--output-type", output_type,
-                        "--zmq-host", "localhost",
-                    )
+                selection = self._spawn_controller(
+                    command.motion_id,
+                    artifact=artifact,
+                    log=log,
+                    planner_enabled=planner_enabled,
                 )
-                command_line = " ".join(
-                    shlex.quote(str(value)) for value in command_values
-                )
-                self.child_log_handle = log.open(
-                    "a" if self.persistent_process else "w",
-                    buffering=1,
-                )
-                child_env = os.environ.copy()
-                # The policy observations contain a ten-frame state history.
-                # In simulation, prefill it from real neutral LowState samples
-                # while the tracker keeps publishing the stable INIT LowCmd.
-                # This avoids the cold-start action spike without changing the
-                # physical-robot executable's default behavior.
-                child_env.setdefault("SONIC_SIM_HISTORY_WARMUP_TICKS", "10")
-                # Keep SONIC's policy action authoritative.  Rate-limiting the
-                # recurrent action prevents the balance policy from reaching
-                # its trained fixed point.  Startup smoothing belongs in the
-                # simulation-only neutral hold and the effort handoff instead.
-                self.child = pexpect.spawn(
-                    "bash",
-                    ["-lc", command_line],
-                    encoding="utf-8",
-                    timeout=180,
-                    env=child_env,
-                )
-                self.child.logfile = self.child_log_handle
-                loaded_names = []
-                while True:
-                    index = self._expect_or_abort(
-                        [
-                            r"✓ Loaded ([^\r\n]+) \(",
-                            r"\[DEBUG\] G1Deploy object created successfully!",
-                        ],
-                        timeout=120,
-                    )
-                    if index == 1:
-                        break
-                    loaded_names.append(self.child.match.group(1).strip())
-                self.loaded_motion_indexes = {
-                    name: index for index, name in enumerate(loaded_names)
-                }
-                self.current_motion_index = 0
-                self.control_started = False
             else:
                 # Output accumulated while Isaac was between runner sessions is
                 # idle telemetry, not an active execution failure. Drain it
@@ -588,16 +533,17 @@ class SonicSupervisor:
                 raise RuntimeError(
                     f"SONIC did not preload approved motion: {command.motion_id}"
                 )
-            target_index = self.loaded_motion_indexes[command.motion_id]
-            self.child.send("R")
-            motion_count = len(self.loaded_motion_indexes)
-            forward = (target_index - self.current_motion_index) % motion_count
-            backward = (self.current_motion_index - target_index) % motion_count
-            key, count = ("N", forward) if forward <= backward else ("P", backward)
-            for _ in range(count):
-                self.child.send(key)
-                time.sleep(0.03)
-            self.current_motion_index = target_index
+            if planner_enabled and self.runtime_mode == "JOYSTICK_LOCOMOTION":
+                # File Separator is an internal InterfaceManager command. It
+                # atomically leaves gamepad/planner mode through the manager's
+                # safety reset before any offline reference is selected.
+                self.child.send("\x1c")
+                self._expect_or_abort(
+                    [r"\[InterfaceManager\] Runtime mode: REFERENCE"],
+                    timeout=5,
+                )
+                self.runtime_mode = "REFERENCE"
+            self._select_loaded_motion(command.motion_id)
             if not self.control_started:
                 self.child.send("]")
                 self._expect_or_abort([r"transitioning to CONTROL state"], timeout=10)
@@ -708,6 +654,10 @@ class SonicSupervisor:
                 self._wait_for_isaac_idle(
                     isaac_ready["session_id"], command.motion_id, timeout=10.0
                 )
+                if planner_enabled:
+                    self._enter_joystick_locomotion(
+                        runtime_request, isaac_ready["session_id"]
+                    )
             isaac_performance = isaac_result.get("performance") or {}
             if self.child_log_handle is not None:
                 self.child_log_handle.flush()
@@ -974,6 +924,188 @@ class SonicSupervisor:
             if index == len(patterns) + 1:
                 raise RuntimeError("SONIC exited before execution completed")
 
+    def _bootstrap_interactive_runtime(self) -> None:
+        """Start one persistent controller and enter native joystick mode."""
+
+        isaac_ready = self._wait_for_isaac_ready(
+            timeout=float(os.getenv("SONIC_INTERACTIVE_STARTUP_TIMEOUT_S", "600"))
+        )
+        standing_motion_id = self._standing_motion_id()
+        artifact = self.exchange / standing_motion_id
+        runtime_request = {
+            "schema_version": 1,
+            "state": "STARTING",
+            "request_id": "interactive-bootstrap",
+            "motion_id": standing_motion_id,
+            "isaac_session_id": isaac_ready["session_id"],
+            "asset_profile": self.required_asset_profile,
+            "reference_contract": self.required_reference_contract,
+            "interactive_source": "unitree_wireless_remote",
+            "approved_epoch_s": time.time(),
+        }
+        self._write_runtime_request(runtime_request)
+        log = self.runtime_dir / "sonic_persistent.log"
+        self._spawn_controller(
+            standing_motion_id,
+            artifact=artifact,
+            log=log,
+            planner_enabled=True,
+        )
+        self._expect_or_abort(["Init Done"], timeout=30)
+        self._select_loaded_motion(standing_motion_id)
+        self.child.send("]")
+        self._expect_or_abort([r"transitioning to CONTROL state"], timeout=10)
+        self.control_started = True
+        self._enter_joystick_locomotion(
+            runtime_request, isaac_ready["session_id"], timeout=180.0
+        )
+        print(
+            "[sonic-supervisor] INTERACTIVE joystick runtime ready "
+            f"session={isaac_ready['session_id']} standing={standing_motion_id}",
+            flush=True,
+        )
+
+    def _wait_for_isaac_ready(self, timeout: float) -> dict:
+        deadline = time.monotonic() + timeout
+        last_error = "Isaac runtime has not reported readiness"
+        while time.monotonic() < deadline:
+            try:
+                return self._require_isaac_ready()
+            except RuntimeError as exc:
+                last_error = str(exc)
+                time.sleep(1.0)
+        raise RuntimeError(
+            f"timed out waiting for Isaac runtime startup: {last_error}"
+        )
+
+    def _standing_motion_id(self) -> str:
+        preferred = os.getenv("SONIC_STANDING_MOTION_ID", "isaac-neutral-v1")
+        candidates = [preferred]
+        candidates.extend(
+            artifact.name
+            for artifact in sorted(self.exchange.iterdir(), key=lambda path: path.name)
+            if artifact.is_dir() and not artifact.name.startswith(".")
+        )
+        seen = set()
+        for motion_id in candidates:
+            if motion_id in seen:
+                continue
+            seen.add(motion_id)
+            artifact = self.exchange / motion_id
+            manifest_path = artifact / "manifest.json"
+            try:
+                manifest = json.loads(manifest_path.read_text())
+            except (FileNotFoundError, json.JSONDecodeError):
+                continue
+            if (
+                manifest.get("execution_contract", {}).get("asset")
+                != self.required_reference_contract
+            ):
+                continue
+            if validate_artifact(artifact).valid:
+                return motion_id
+        raise RuntimeError(
+            "interactive runtime needs one validated standing-compatible motion; "
+            f"preferred={preferred}"
+        )
+
+    def _spawn_controller(
+        self,
+        required_motion_id: str,
+        *,
+        artifact: Path,
+        log: Path,
+        planner_enabled: bool,
+    ) -> Path:
+        executable = self.sonic_root / "target/release/g1_deploy_onnx_ref"
+        if not executable.is_file():
+            raise RuntimeError(f"SONIC executable is missing: {executable}")
+        if self.persistent_process:
+            selection = self._prepare_persistent_reference_pool(required_motion_id)
+        else:
+            selection_root = self.exchange / ".sonic-selection"
+            selection_root.mkdir(exist_ok=True)
+            selection = Path(tempfile.mkdtemp(prefix="run-", dir=selection_root))
+            prepare_sonic_reference_view(artifact, selection / required_motion_id)
+        command_values = [
+            executable,
+            os.getenv("SONIC_INTERFACE", "lo"),
+            self.sonic_root / "policy/release/model_decoder.onnx",
+            selection,
+            "--obs-config",
+            self.sonic_root / "policy/release/observation_config.yaml",
+            "--encoder-file",
+            self.sonic_root / "policy/release/model_encoder.onnx",
+        ]
+        if planner_enabled:
+            command_values.extend(
+                (
+                    "--planner-file",
+                    self.sonic_root / "planner/target_vel/V2/planner_sonic.onnx",
+                )
+            )
+        command_values.extend(
+            (
+                "--input-type",
+                "manager" if planner_enabled else "keyboard",
+                "--output-type",
+                os.getenv("SONIC_OUTPUT_TYPE", "all"),
+                "--zmq-host",
+                "localhost",
+            )
+        )
+        command_line = " ".join(
+            shlex.quote(str(value)) for value in command_values
+        )
+        self.child_log_handle = log.open(
+            "a" if self.persistent_process else "w", buffering=1
+        )
+        child_env = os.environ.copy()
+        child_env.setdefault("SONIC_SIM_HISTORY_WARMUP_TICKS", "10")
+        self.child = pexpect.spawn(
+            "bash",
+            ["-lc", command_line],
+            encoding="utf-8",
+            timeout=180,
+            env=child_env,
+        )
+        self.child.logfile = self.child_log_handle
+        loaded_names = []
+        while True:
+            index = self._expect_or_abort(
+                [
+                    r"✓ Loaded ([^\r\n]+) \(",
+                    r"\[DEBUG\] G1Deploy object created successfully!",
+                ],
+                timeout=120,
+            )
+            if index == 1:
+                break
+            loaded_names.append(self.child.match.group(1).strip())
+        self.loaded_motion_indexes = {
+            name: index for index, name in enumerate(loaded_names)
+        }
+        self.current_motion_index = 0
+        self.control_started = False
+        self.runtime_mode = "REFERENCE"
+        return selection
+
+    def _select_loaded_motion(self, motion_id: str) -> None:
+        if self.child is None:
+            raise RuntimeError("SONIC process was not started")
+        if motion_id not in self.loaded_motion_indexes:
+            raise RuntimeError(f"SONIC did not preload approved motion: {motion_id}")
+        target_index = self.loaded_motion_indexes[motion_id]
+        self.child.send("R")
+        motion_count = len(self.loaded_motion_indexes)
+        forward = (target_index - self.current_motion_index) % motion_count
+        backward = (self.current_motion_index - target_index) % motion_count
+        key, count = ("N", forward) if forward <= backward else ("P", backward)
+        for _ in range(count):
+            self.child.send(key)
+            time.sleep(0.03)
+        self.current_motion_index = target_index
+
     def _wait_or_abort(self, duration: float, watch_child: bool = False) -> None:
         deadline = time.monotonic() + duration
         while time.monotonic() < deadline:
@@ -1017,6 +1149,47 @@ class SonicSupervisor:
         self.loaded_motion_indexes = {}
         self.current_motion_index = 0
         self.control_started = False
+        self.runtime_mode = "STOPPED"
+
+    def _enter_joystick_locomotion(
+        self, runtime_request: dict, session_id: str, timeout: float = 30.0
+    ) -> None:
+        """Hand LowCmd generation to the native Unitree gamepad planner."""
+
+        if self.child is None or not self.child.isalive():
+            raise RuntimeError("cannot enter joystick mode without a live SONIC process")
+        # Group Separator is reserved for the supervisor. InterfaceManager
+        # switches delegates, performs its safety reset, then requests planner
+        # activation after that reset has been consumed by Gamepad::update().
+        self.child.send("\x1d")
+        self._expect_or_abort(
+            [r"\[InterfaceManager\] Runtime mode: JOYSTICK_PLANNER"],
+            timeout=5,
+        )
+        self._expect_or_abort([r"\[Gamepad\] motion name is planner_motion"], timeout=15)
+        self.runtime_mode = "JOYSTICK_LOCOMOTION"
+        runtime_request["state"] = "INTERACTIVE"
+        runtime_request["interactive_source"] = "unitree_wireless_remote"
+        runtime_request["interactive_epoch_s"] = time.time()
+        self._write_runtime_request(runtime_request)
+        self._wait_for_isaac_runtime_mode(session_id, "INTERACTIVE", timeout=timeout)
+
+    def _wait_for_isaac_runtime_mode(
+        self, session_id: str, desired_state: str, timeout: float
+    ) -> dict:
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            status = self._read_isaac_status()
+            if status.get("session_id") != session_id:
+                raise RuntimeError("Isaac session changed during runtime mode switch")
+            if status.get("state") == desired_state:
+                return status
+            if status.get("state") in TERMINAL_FAILURE_STATES:
+                raise RuntimeError(
+                    str(status.get("reason") or f"Isaac state={status.get('state')}")
+                )
+            time.sleep(0.1)
+        raise RuntimeError(f"timed out waiting for Isaac state={desired_state}")
 
     def _prepare_persistent_reference_pool(self, required_motion_id: str) -> Path:
         """Build a stable SONIC view containing every validated compatible motion."""
