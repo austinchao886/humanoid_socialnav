@@ -495,8 +495,11 @@ class SonicSupervisor:
             else:
                 # Output accumulated while Isaac was between runner sessions is
                 # idle telemetry, not an active execution failure. Drain it
-                # before establishing the new STARTING/SETTLING boundary.
-                while True:
+                # before establishing the new STARTING/SETTLING boundary. The
+                # controller emits live timing telemetry continuously, so this
+                # drain must be bounded or an approval can starve forever.
+                drain_deadline = time.monotonic() + 0.1
+                while time.monotonic() < drain_deadline:
                     try:
                         self.child.read_nonblocking(size=4096, timeout=0)
                     except pexpect.TIMEOUT:
