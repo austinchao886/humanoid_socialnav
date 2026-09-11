@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-request_id="isaac-arm-raise-v1"
-motion_id="isaac-arm-raise-v1"
+request_id="${1:-isaac-arm-raise-v1}"
+motion_id="${2:-$request_id}"
 
-docker exec -it sonic-tracker \
+exec docker exec -it sonic-tracker \
   motion-cli \
   --domain 42 \
   --interface lo \

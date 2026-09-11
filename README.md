@@ -13,6 +13,12 @@ Pinned sources:
 The canonical machine-readable dependency and local container snapshot is
 [`versions.lock.yaml`](versions.lock.yaml).
 
+Repository ownership and the staged refactor rules are documented in
+[`docs/architecture/workspace-layout.md`](docs/architecture/workspace-layout.md).
+Service-owned integration code lives under `services/`, deployment assets live
+under `deploy/`, and human-friendly commands live under `tools/run/`. Temporary
+compatibility symlinks keep the former paths working during migration.
+
 The existing `isaac-lab` container remains independent on GPU 0. `kimodo`
 generates immutable G1 references on GPU 1. `sonic-tracker` validates manually
 approved references and drives the simulator through simulation-only Unitree
@@ -171,7 +177,7 @@ Start the authoritative runner with visualization snapshots enabled:
 docker exec -d isaac-lab-headless-latency sh -lc '
   cd /socialnav_humanoid_ws/unitree_sim_isaaclab
   DDS_DOMAIN=42 DDS_INTERFACE=lo \
-  CYCLONEDDS_URI=file:///socialnav_humanoid_ws/motion_pipeline/config/cyclonedds-localhost.xml \
+  CYCLONEDDS_URI=file:///socialnav_humanoid_ws/motion_pipeline/deploy/config/cyclonedds-localhost.xml \
   SIM_LOWSTATE_TOPIC=rt/socialnav_sim/g1/lowstate \
   SIM_LOWCMD_TOPIC=rt/socialnav_sim/g1/lowcmd \
   /isaac-sim/python.sh run_motion_pipeline_sim.py \
@@ -198,7 +204,7 @@ viewer and must never be used to claim physical tracking success.
 
 ### 5. Custom Dex1 USD
 
-Asset profiles live in `config/asset_profiles/`:
+Asset profiles live in `deploy/config/asset_profiles/`:
 
 - `sonic_official_g1`: qualified execution profile.
 - `g1_dex1_wholebody`: `pending_calibration`; full motion execution is blocked.

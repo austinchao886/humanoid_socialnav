@@ -4,7 +4,7 @@ services:
   kimodo:
     build:
       context: .
-      dockerfile: docker/kimodo.Dockerfile
+      dockerfile: deploy/docker/kimodo.Dockerfile
     image: social-motion/kimodo:1aece8c
     container_name: kimodo
     network_mode: host
@@ -23,7 +23,7 @@ services:
       - ../motion_exchange:/motion_exchange
       - ../unitree_sdk2_python:/unitree_sdk2_python:ro
       - ${HOME}/.cache/huggingface:/cache/huggingface
-      - ./config/cyclonedds-localhost.xml:/etc/cyclonedds-localhost.xml:ro
+      - ./deploy/config/cyclonedds-localhost.xml:/etc/cyclonedds-localhost.xml:ro
       - ./motion_pipeline/artifact.py:/usr/local/lib/python3.10/dist-packages/motion_pipeline/artifact.py:ro
       - ./motion_pipeline/validator.py:/usr/local/lib/python3.10/dist-packages/motion_pipeline/validator.py:ro
       - ./motion_pipeline/generator_service.py:/usr/local/lib/python3.10/dist-packages/motion_pipeline/generator_service.py:ro
@@ -42,7 +42,7 @@ services:
     profiles: ["video"]
     build:
       context: .
-      dockerfile: docker/video.Dockerfile
+      dockerfile: deploy/docker/video.Dockerfile
     image: social-motion/video-gem-gmr:16bebf4-bb1bbe4
     container_name: video-generator
     network_mode: host
@@ -65,17 +65,20 @@ services:
       SMPLX_MODEL_DIR: ${SMPLX_MODEL_DIR:-/models/body_models}
       G1_MJCF: /opt/GMR/assets/unitree_g1/g1_mocap_29dof.xml
       GEM_ADAPTER_COMMAND: >-
-        python /opt/motion_pipeline/video_adapters/gem_adapter.py
+        python /opt/social-motion/services/video_generator/adapters/gem_adapter.py
         --video {video} --output {canonical} --tracking-report {tracking}
         --overlay {overlay} --world-view {world} --static-camera {static_camera}
       GMR_ADAPTER_COMMAND: >-
-        python /opt/motion_pipeline/video_adapters/gmr_adapter.py
+        python /opt/social-motion/services/video_generator/adapters/gmr_adapter.py
         --input {canonical} --output {robot} --preview {preview}
     volumes:
       - ../motion_exchange:/motion_exchange
       # Preserve host absolute paths published by motion-cli for files inside
       # this workspace, while keeping the source tree read-only.
       - ..:/home/adcs-public-robot/Documents/socialnav_humanoid_ws:ro
+      # Pin this service to the Compose checkout even when it is launched from
+      # a Git worktree with a different directory name.
+      - .:/home/adcs-public-robot/Documents/socialnav_humanoid_ws/motion_pipeline:ro
       - ../unitree_sdk2_python:/unitree_sdk2_python:ro
       # GEM and GMR are pinned and installed in the image.  Do not shadow
       # them with read-only repo mounts: Docker must create the nested
@@ -90,9 +93,9 @@ services:
       - ./vendor/GR00T-WholeBodyControl/gear_sonic/trl/utils/smplx/body_model/smpl_coco17_J_regressor.pt:/opt/GEM/gem/utils/body_model/smpl_coco17_J_regressor.pt:ro
       - ./vendor/GR00T-WholeBodyControl/gear_sonic/trl/utils/smplx/body_model/smplx_verts437.pt:/opt/GEM/gem/utils/body_model/smplx_verts437.pt:ro
       - ./vendor/GR00T-WholeBodyControl/gear_sonic/trl/utils/smplx/body_model/smpl_neutral_J_regressor.pt:/opt/GEM/gem/utils/body_model/smpl_neutral_J_regressor.pt:ro
-      - ./config/cyclonedds-localhost.xml:/etc/cyclonedds-localhost.xml:ro
+      - ./deploy/config/cyclonedds-localhost.xml:/etc/cyclonedds-localhost.xml:ro
       - ./motion_pipeline:/opt/motion_pipeline/motion_pipeline:ro
-      - ./video_adapters:/opt/motion_pipeline/video_adapters:ro
+      - ./services/video_generator:/opt/social-motion/services/video_generator:ro
     deploy:
       resources:
         reservations:
@@ -104,7 +107,7 @@ services:
   sonic-tracker:
     build:
       context: .
-      dockerfile: docker/sonic.Dockerfile
+      dockerfile: deploy/docker/sonic.Dockerfile
     image: social-motion/sonic:60c561b
     container_name: sonic-tracker
     network_mode: host
@@ -167,7 +170,7 @@ services:
       # TensorRT writes its GPU-specific engine cache beside the ONNX files.
       - ./vendor/GR00T-WholeBodyControl/gear_sonic_deploy/policy:/sonic/gear_sonic_deploy/policy:rw
       - ./vendor/GR00T-WholeBodyControl/gear_sonic_deploy/planner:/sonic/gear_sonic_deploy/planner:rw
-      - ./config/cyclonedds-localhost.xml:/etc/cyclonedds-localhost.xml:ro
+      - ./deploy/config/cyclonedds-localhost.xml:/etc/cyclonedds-localhost.xml:ro
       - ./motion_pipeline/sonic_supervisor.py:/usr/local/lib/python3.10/dist-packages/motion_pipeline/sonic_supervisor.py:ro
       - ./motion_pipeline/latency.py:/usr/local/lib/python3.10/dist-packages/motion_pipeline/latency.py:ro
       - ./motion_pipeline/performance.py:/usr/local/lib/python3.10/dist-packages/motion_pipeline/performance.py:ro
@@ -215,6 +218,9 @@ services:
       OMNI_SERVER: http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.5
     volumes:
       - ..:/socialnav_humanoid_ws
+      # The parent mount supplies sibling Isaac/SDK/model workspaces. This
+      # nested mount selects the exact motion-pipeline checkout being tested.
+      - .:/socialnav_humanoid_ws/motion_pipeline:ro
       - ${ISAAC_SIM_CACHE_ROOT:-/home/adcs-public-robot/docker/isaac-sim}/cache/kit:/isaac-sim/kit/cache
       - ${ISAAC_SIM_CACHE_ROOT:-/home/adcs-public-robot/docker/isaac-sim}/cache/ov:/root/.cache/ov
       - ${ISAAC_SIM_CACHE_ROOT:-/home/adcs-public-robot/docker/isaac-sim}/cache/pip:/root/.cache/pip
@@ -270,7 +276,8 @@ services:
       PYTHONPATH: /socialnav_humanoid_ws/unitree_sim_isaaclab:/socialnav_humanoid_ws/unitree_sdk2_python
     volumes:
       - ..:/socialnav_humanoid_ws
-      - ./config/isaaclab.sonic_streaming.kit:/isaac-lab/apps/isaaclab.sonic_streaming.kit:ro
+      - .:/socialnav_humanoid_ws/motion_pipeline:ro
+      - ./deploy/config/isaaclab.sonic_streaming.kit:/isaac-lab/apps/isaaclab.sonic_streaming.kit:ro
       - ../.cache/isaac-sim-visualizer/cache/kit:/isaac-sim/kit/cache
       - ../.cache/isaac-sim-visualizer/cache/ov:/root/.cache/ov
       - ../.cache/isaac-sim-visualizer/cache/pip:/root/.cache/pip

@@ -5,6 +5,7 @@
 .venv/
 venv/
 .tools/
+.test-deps/
 __pycache__/
 *.py[cod]
 .pytest_cache/
@@ -24,6 +25,8 @@ video_inputs/
 logs/
 outputs/
 *.log
+runtime/*
+!runtime/README.md
 
 # Local configuration and credentials
 .env

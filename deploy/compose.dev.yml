@@ -1,0 +1,13 @@
+services:
+  kimodo:
+    volumes:
+      - ./motion_pipeline:/usr/local/lib/python3.10/dist-packages/motion_pipeline:ro
+
+  sonic-tracker:
+    volumes:
+      - ./motion_pipeline:/usr/local/lib/python3.10/dist-packages/motion_pipeline:ro
+
+  video-generator:
+    volumes:
+      - ./motion_pipeline:/opt/motion_pipeline/motion_pipeline:ro
+      - ./services/video_generator:/opt/social-motion/services/video_generator:ro
