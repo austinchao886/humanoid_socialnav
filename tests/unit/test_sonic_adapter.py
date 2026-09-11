@@ -238,3 +238,24 @@ def test_interactive_bootstrap_ignores_pre_start_isaac_heartbeat(
     monkeypatch.setattr(time, "sleep", lambda _seconds: None)
 
     assert supervisor._wait_for_isaac_ready(timeout=1.0)["session_id"] == "new-session"
+
+
+def test_pre_planner_gate_requires_quiet_ready_standing(tmp_path, monkeypatch):
+    supervisor = SonicSupervisor(tmp_path, tmp_path, object())
+    monkeypatch.setattr(
+        supervisor,
+        "_read_isaac_status",
+        lambda: {
+            "session_id": "same-session",
+            "state": "READY_STANDING",
+            "root_height_m": 0.78,
+            "root_tilt_rad": 0.02,
+            "max_joint_velocity_rad_s": 0.5,
+        },
+    )
+
+    status = supervisor._wait_for_stable_standing(
+        "same-session", stable_duration=0.0, timeout=1.0
+    )
+
+    assert status["state"] == "READY_STANDING"

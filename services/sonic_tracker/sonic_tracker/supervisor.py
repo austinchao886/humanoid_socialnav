@@ -656,6 +656,20 @@ class SonicSupervisor:
                     isaac_ready["session_id"], command.motion_id, timeout=10.0
                 )
                 if planner_enabled:
+                    # Do not initialize the locomotion planner from residual
+                    # end-of-reference velocity. Hold the explicit neutral
+                    # reference until the unsupported robot is observably
+                    # quiet, then let the planner take over.
+                    self._select_loaded_motion(self._standing_motion_id())
+                    self._wait_for_stable_standing(
+                        isaac_ready["session_id"],
+                        stable_duration=float(
+                            os.getenv("SONIC_PRE_PLANNER_STABLE_S", "3.0")
+                        ),
+                        timeout=float(
+                            os.getenv("SONIC_PRE_PLANNER_TIMEOUT_S", "60.0")
+                        ),
+                    )
                     self._enter_joystick_locomotion(
                         runtime_request, isaac_ready["session_id"]
                     )
@@ -1197,6 +1211,45 @@ class SonicSupervisor:
                 )
             time.sleep(0.1)
         raise RuntimeError(f"timed out waiting for Isaac state={desired_state}")
+
+    def _wait_for_stable_standing(
+        self, session_id: str, *, stable_duration: float, timeout: float
+    ) -> dict:
+        deadline = time.monotonic() + timeout
+        stable_since = None
+        latest = None
+        while time.monotonic() < deadline:
+            latest = self._read_isaac_status()
+            if latest.get("session_id") != session_id:
+                raise RuntimeError("Isaac session changed while stabilizing neutral stand")
+            if latest.get("state") in TERMINAL_FAILURE_STATES:
+                raise RuntimeError(
+                    str(latest.get("reason") or f"Isaac state={latest.get('state')}")
+                )
+            try:
+                root_height = float(latest.get("root_height_m"))
+                root_tilt = float(latest.get("root_tilt_rad"))
+                max_dq = float(latest.get("max_joint_velocity_rad_s"))
+            except (TypeError, ValueError):
+                quiet = False
+            else:
+                quiet = bool(
+                    latest.get("state") == "READY_STANDING"
+                    and 0.70 <= root_height <= 0.90
+                    and root_tilt <= 0.10
+                    and max_dq <= 0.70
+                )
+            if quiet:
+                if stable_since is None:
+                    stable_since = time.monotonic()
+                if time.monotonic() - stable_since >= stable_duration:
+                    return latest
+            else:
+                stable_since = None
+            time.sleep(0.1)
+        raise RuntimeError(
+            "neutral reference did not reach stable standing before planner takeover"
+        )
 
     def _prepare_persistent_reference_pool(self, required_motion_id: str) -> Path:
         """Build a stable SONIC view containing every validated compatible motion."""
