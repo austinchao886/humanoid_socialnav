@@ -1,0 +1,60 @@
+schema_version: 1
+captured_at: "2026-09-10"
+
+dependencies:
+  groot_whole_body_control:
+    repository: https://github.com/austinchao886/GR00T-WholeBodyControl.git
+    upstream: https://github.com/NVlabs/GR00T-WholeBodyControl.git
+    branch: social-motion/isaac-integration
+    commit: 60c561b65d1ce2bba59c4cc752a8ffefb51d4884
+    management: git-submodule
+  kimodo:
+    repository: https://github.com/nv-tlabs/kimodo.git
+    branch: main
+    commit: 1aece8c124d73d255ceff5086d983b844c9f4e94
+    management: git-submodule
+  kimodo_viser:
+    repository: https://github.com/nv-tlabs/kimodo-viser.git
+    branch: main
+    commit: 7c82ad8f8640bad9dff8ded5c5eee908eeb08f11
+    management: bootstrap-nested-checkout
+  unitree_sim_isaaclab:
+    repository: https://github.com/austinchao886/unitree_sim_isaaclab.git
+    upstream: https://github.com/unitreerobotics/unitree_sim_isaaclab.git
+    branch: social-motion/sonic-pipeline-sim
+    commit: 28a9944ef7ab0d61242cffe454e2a2329fbd39fb
+    management: bootstrap-workspace-checkout
+  unitree_sdk2_python:
+    repository: https://github.com/unitreerobotics/unitree_sdk2_python.git
+    branch: master
+    commit: 65691c8a8bc53b98d3976dba4dbf9d5d20b2e7f5
+    management: bootstrap-workspace-checkout
+  gem:
+    repository: https://github.com/NVlabs/GENMO.git
+    commit: 16bebf402d8893184249ee206d957b8248cd8310
+    management: docker-build-checkout
+  gmr:
+    repository: https://github.com/YanjieZe/GMR.git
+    commit: bb1bbe40774794fceb2a7c579a3464a28e68c844
+    management: docker-build-checkout
+  cyclonedds_python:
+    package: cyclonedds
+    version: 11.0.1
+    management: python-package
+
+containers:
+  sonic:
+    compose_image: social-motion/sonic:60c561b
+    source_commit: 60c561b65d1ce2bba59c4cc752a8ffefb51d4884
+    local_image_id: sha256:2fd1a965687a211187ecac01065813617e46658fc77a101f756162612579bde9
+    controller_binary_sha256: 5037bc53f4fc2007c9c3f0001d3db2ca43bc4cc3aba025c3e77b4df944d518a8
+    build_status: built-and-verified
+  isaac:
+    compose_image: unitree_sim_isaaclab:isaacsim4.5-gui
+    local_image_id: sha256:87513b411f492bc9b1cb0b2fd7be749408c18ec0af30cff8b84cf82bdc4c8aa4
+    source_commit: 28a9944ef7ab0d61242cffe454e2a2329fbd39fb
+
+artifacts:
+  model_root: ../motion_models
+  runtime_exchange: ../motion_exchange
+  tracked_in_git: false

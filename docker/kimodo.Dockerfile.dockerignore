@@ -1,0 +1,16 @@
+**
+!pyproject.toml
+!motion_pipeline/
+!motion_pipeline/**
+!vendor/
+!vendor/kimodo/
+!vendor/kimodo/docker_requirements.txt
+!vendor/kimodo/setup.py
+!vendor/kimodo/pyproject.toml
+!vendor/kimodo/kimodo/
+!vendor/kimodo/kimodo/**
+!vendor/kimodo/kimodo-viser/
+!vendor/kimodo/kimodo-viser/**
+!vendor/kimodo/MotionCorrection/
+!vendor/kimodo/MotionCorrection/**
+vendor/kimodo/kimodo-viser/.git/

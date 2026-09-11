@@ -1,0 +1,7 @@
+[submodule "vendor/GR00T-WholeBodyControl"]
+	path = vendor/GR00T-WholeBodyControl
+	url = https://github.com/austinchao886/GR00T-WholeBodyControl.git
+[submodule "vendor/kimodo"]
+	path = vendor/kimodo
+	url = https://github.com/nv-tlabs/kimodo.git
+	ignore = untracked

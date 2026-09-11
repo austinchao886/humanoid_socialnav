@@ -1,0 +1,10 @@
+**
+!pyproject.toml
+!motion_pipeline/
+!motion_pipeline/**
+!vendor/
+!vendor/GR00T-WholeBodyControl/
+!vendor/GR00T-WholeBodyControl/gear_sonic_deploy/
+!vendor/GR00T-WholeBodyControl/gear_sonic_deploy/**
+vendor/GR00T-WholeBodyControl/gear_sonic_deploy/build/
+vendor/GR00T-WholeBodyControl/gear_sonic_deploy/target/

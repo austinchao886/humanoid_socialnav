@@ -1,0 +1,40 @@
+.DS_Store
+
+# Python caches and local environments
+.venv-test/
+.venv/
+venv/
+.tools/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+coverage.xml
+.coverage
+htmlcov/
+
+# Build outputs and locally compiled executables
+.build/
+build/
+dist/
+bin/
+
+# Runtime inputs, outputs, and logs
+video_inputs/
+logs/
+outputs/
+*.log
+
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+
+# Local staging and backup snapshots
+.codex-staging/
+.codex-backups/
+*.pre-quality-fix
+*.bak
+*.backup
+*.swp
+*~

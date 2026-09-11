@@ -1,0 +1,287 @@
+name: social-motion-pipeline
+
+services:
+  kimodo:
+    build:
+      context: .
+      dockerfile: docker/kimodo.Dockerfile
+    image: social-motion/kimodo:1aece8c
+    container_name: kimodo
+    network_mode: host
+    ipc: host
+    shm_size: 16gb
+    restart: unless-stopped
+    environment:
+      NVIDIA_VISIBLE_DEVICES: "1"
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+      HF_HOME: /cache/huggingface
+      MOTION_EXCHANGE: /motion_exchange
+      KIMODO_MODEL: nvidia/Kimodo-G1-RP-v1
+      DDS_DOMAIN: "42"
+      DDS_INTERFACE: ${MOTION_DDS_INTERFACE:-lo}
+    volumes:
+      - ../motion_exchange:/motion_exchange
+      - ../unitree_sdk2_python:/unitree_sdk2_python:ro
+      - ${HOME}/.cache/huggingface:/cache/huggingface
+      - ./config/cyclonedds-localhost.xml:/etc/cyclonedds-localhost.xml:ro
+      - ./motion_pipeline/artifact.py:/usr/local/lib/python3.10/dist-packages/motion_pipeline/artifact.py:ro
+      - ./motion_pipeline/validator.py:/usr/local/lib/python3.10/dist-packages/motion_pipeline/validator.py:ro
+      - ./motion_pipeline/generator_service.py:/usr/local/lib/python3.10/dist-packages/motion_pipeline/generator_service.py:ro
+      - ./motion_pipeline/latency.py:/usr/local/lib/python3.10/dist-packages/motion_pipeline/latency.py:ro
+      - ./motion_pipeline/deterministic.py:/usr/local/lib/python3.10/dist-packages/motion_pipeline/deterministic.py:ro
+      - ./vendor/GR00T-WholeBodyControl/gear_sonic/data/assets/robot_description:/sonic_robot_description:ro
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["1"]
+              capabilities: [gpu]
+
+  video-generator:
+    profiles: ["video"]
+    build:
+      context: .
+      dockerfile: docker/video.Dockerfile
+    image: social-motion/video-gem-gmr:16bebf4-bb1bbe4
+    container_name: video-generator
+    network_mode: host
+    ipc: host
+    shm_size: 16gb
+    restart: unless-stopped
+    environment:
+      NVIDIA_VISIBLE_DEVICES: "1"
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+      MOTION_EXCHANGE: /motion_exchange
+      DDS_DOMAIN: "42"
+      DDS_INTERFACE: ${MOTION_DDS_INTERFACE:-lo}
+      GEM_ROOT: /opt/GEM
+      GMR_ROOT: /opt/GMR
+      PYTHONPATH: /unitree_sdk2_python:/opt/motion_pipeline
+      GEM_MODEL_VERSION: 16bebf402d8893184249ee206d957b8248cd8310
+      GMR_VERSION: bb1bbe40774794fceb2a7c579a3464a28e68c844
+      GEM_CHECKPOINT: ${GEM_CHECKPOINT:-/models/gem/gem_smpl.ckpt}
+      GEM_YOLO_MODEL: /models/hf-gvhmr/yolo/yolov8x.pt
+      SMPLX_MODEL_DIR: ${SMPLX_MODEL_DIR:-/models/body_models}
+      G1_MJCF: /opt/GMR/assets/unitree_g1/g1_mocap_29dof.xml
+      GEM_ADAPTER_COMMAND: >-
+        python /opt/motion_pipeline/video_adapters/gem_adapter.py
+        --video {video} --output {canonical} --tracking-report {tracking}
+        --overlay {overlay} --world-view {world} --static-camera {static_camera}
+      GMR_ADAPTER_COMMAND: >-
+        python /opt/motion_pipeline/video_adapters/gmr_adapter.py
+        --input {canonical} --output {robot} --preview {preview}
+    volumes:
+      - ../motion_exchange:/motion_exchange
+      # Preserve host absolute paths published by motion-cli for files inside
+      # this workspace, while keeping the source tree read-only.
+      - ..:/home/adcs-public-robot/Documents/socialnav_humanoid_ws:ro
+      - ../unitree_sdk2_python:/unitree_sdk2_python:ro
+      # GEM and GMR are pinned and installed in the image.  Do not shadow
+      # them with read-only repo mounts: Docker must create the nested
+      # checkpoint bind-mount targets below during container startup.
+      - ../motion_models:/models:ro
+      - ../motion_models/hf-gvhmr/hmr2/epoch=10-step=25000.ckpt:/opt/GEM/inputs/checkpoints/hmr2/epoch=10-step=25000.ckpt:ro
+      - ../motion_models/hf-gvhmr/vitpose/vitpose-h-multi-coco.pth:/opt/GEM/inputs/checkpoints/vitpose/vitpose-h-multi-coco.pth:ro
+      - ../motion_models/hf-gvhmr/yolo/yolov8x.pt:/opt/GEM/yolov8x.pt:ro
+      - ../motion_models/body_models/smplx/SMPLX_NEUTRAL.npz:/opt/GEM/inputs/checkpoints/body_models/smplx/SMPLX_NEUTRAL.npz:ro
+      - ./vendor/GR00T-WholeBodyControl/gear_sonic/trl/utils/smplx/body_model/coco_aug_dict.pth:/opt/GEM/gem/utils/body_model/coco_aug_dict.pth:ro
+      - ./vendor/GR00T-WholeBodyControl/gear_sonic/trl/utils/smplx/body_model/smplx2smpl_sparse.pt:/opt/GEM/gem/utils/body_model/smplx2smpl_sparse.pt:ro
+      - ./vendor/GR00T-WholeBodyControl/gear_sonic/trl/utils/smplx/body_model/smpl_coco17_J_regressor.pt:/opt/GEM/gem/utils/body_model/smpl_coco17_J_regressor.pt:ro
+      - ./vendor/GR00T-WholeBodyControl/gear_sonic/trl/utils/smplx/body_model/smplx_verts437.pt:/opt/GEM/gem/utils/body_model/smplx_verts437.pt:ro
+      - ./vendor/GR00T-WholeBodyControl/gear_sonic/trl/utils/smplx/body_model/smpl_neutral_J_regressor.pt:/opt/GEM/gem/utils/body_model/smpl_neutral_J_regressor.pt:ro
+      - ./config/cyclonedds-localhost.xml:/etc/cyclonedds-localhost.xml:ro
+      - ./motion_pipeline:/opt/motion_pipeline/motion_pipeline:ro
+      - ./video_adapters:/opt/motion_pipeline/video_adapters:ro
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["1"]
+              capabilities: [gpu]
+
+  sonic-tracker:
+    build:
+      context: .
+      dockerfile: docker/sonic.Dockerfile
+    image: social-motion/sonic:60c561b
+    container_name: sonic-tracker
+    network_mode: host
+    ipc: host
+    # Keep SONIC and TensorRT helper threads off Isaac/PhysX cores 0-15.
+    # CPU 20-23 and their SMT siblings 44-47 are dedicated to control.
+    cpuset: "20-23,44-47"
+    restart: unless-stopped
+    environment:
+      # Isaac Sim is pinned to host GPU 0. Run SONIC on GPU 1 so its TensorRT
+      # control loop cannot starve PhysX; Kimodo and SONIC use GPU 1 at
+      # different pipeline phases and fit concurrently in its 24 GB VRAM.
+      NVIDIA_VISIBLE_DEVICES: "1"
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+      MOTION_EXCHANGE: /motion_exchange
+      DDS_DOMAIN: "42"
+      SONIC_DDS_DOMAIN: "42"
+      # The deployment-v1 Inspire USD is the interactive default.  Set these
+      # host variables to sonic_official_g1 / Isaac-Flat-G129-SONIC-Official
+      # when an authoritative baseline regression is required.
+      SONIC_ASSET_PROFILE: ${SONIC_ASSET_PROFILE:-g1_deployment_v1}
+      SONIC_ISAAC_TASK: ${SONIC_ISAAC_TASK:-Isaac-Flat-G129-Deployment-V1}
+      SONIC_REFERENCE_CONTRACT: sonic_official_g1
+      # Host-local command/status and the spawned low-level tracker default to
+      # loopback for deterministic discovery.  Set MOTION_DDS_INTERFACE to a
+      # LAN interface only when an external DDS participant is required.
+      SONIC_INTERFACE: lo
+      DDS_INTERFACE: ${MOTION_DDS_INTERFACE:-lo}
+      SONIC_LOWSTATE_TOPIC: rt/socialnav_sim/g1/lowstate
+      SONIC_LOWCMD_TOPIC: rt/socialnav_sim/g1/lowcmd
+      SONIC_SECONDARY_IMU_TOPIC: rt/socialnav_sim/g1/secondary_imu
+      SONIC_SIM_SYNC_REFERENCE_TO_LOWSTATE_TICK: "1"
+      # Isaac publishes a 200 Hz physics-step counter in LowState.tick; SONIC
+      # must run once per four physics steps to preserve its trained 50 Hz dt.
+      SONIC_SIM_TICK_DELTA_PER_CONTROL: "4"
+      # Simulator sessions restart with a fresh LowState.tick. Between motions
+      # the prewarming service may leave a short LowState gap; tolerate it only
+      # while playback is idle. The deployment binary still aborts immediately
+      # on DDS loss during active reference playback.
+      SONIC_SIM_ALLOW_IDLE_LOWSTATE_GAP: "1"
+      # Isaac applies the cached LowCmd PD target at its 200 Hz physics-servo
+      # rate. SONIC changes that target at 50 Hz, so simulator DDS only needs
+      # one publish per policy update; hardware retains the 500 Hz default.
+      SONIC_SIM_COMMAND_PUBLISH_HZ: "50"
+      # Keep TensorRT and the validated reference pool resident between
+      # motions. The supervisor resets the controller to IDLE after the
+      # monitored post-hold and discards the process after any failed/unsafe
+      # execution, so reuse never crosses a safety failure.
+      SONIC_PERSISTENT_PROCESS: "1"
+      SONIC_ENABLE_PLANNER: "0"
+      # Keep only the supported ZMQ debug output; avoid requesting additional
+      # output backends during latency acceptance.
+      SONIC_OUTPUT_TYPE: zmq
+      # Prefer the host driver injected by the NVIDIA runtime. The CUDA image's
+      # forward-compat libcuda fails with error 804 on this GeForce host.
+      LD_LIBRARY_PATH: /lib/x86_64-linux-gnu
+    volumes:
+      - ../motion_exchange:/motion_exchange
+      - ../unitree_sdk2_python:/unitree_sdk2_python:ro
+      # TensorRT writes its GPU-specific engine cache beside the ONNX files.
+      - ./vendor/GR00T-WholeBodyControl/gear_sonic_deploy/policy:/sonic/gear_sonic_deploy/policy:rw
+      - ./vendor/GR00T-WholeBodyControl/gear_sonic_deploy/planner:/sonic/gear_sonic_deploy/planner:rw
+      - ./config/cyclonedds-localhost.xml:/etc/cyclonedds-localhost.xml:ro
+      - ./motion_pipeline/sonic_supervisor.py:/usr/local/lib/python3.10/dist-packages/motion_pipeline/sonic_supervisor.py:ro
+      - ./motion_pipeline/latency.py:/usr/local/lib/python3.10/dist-packages/motion_pipeline/latency.py:ro
+      - ./motion_pipeline/performance.py:/usr/local/lib/python3.10/dist-packages/motion_pipeline/performance.py:ro
+      - ./motion_pipeline/validator.py:/usr/local/lib/python3.10/dist-packages/motion_pipeline/validator.py:ro
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["1"]
+              capabilities: [gpu]
+
+  isaac-runner:
+    profiles: ["runtime"]
+    image: unitree_sim_isaaclab:isaacsim4.5-gui
+    container_name: isaac-runner
+    network_mode: host
+    ipc: host
+    shm_size: 16gb
+    cpuset: "0-15,24-39"
+    restart: unless-stopped
+    stop_grace_period: 30s
+    working_dir: /socialnav_humanoid_ws/unitree_sim_isaaclab
+    entrypoint: ["/bin/bash", "-lc"]
+    command:
+      - exec /socialnav_humanoid_ws/motion_pipeline/scripts/run_prewarmed_isaac_runner.sh
+    environment:
+      ACCEPT_EULA: "Y"
+      PRIVACY_CONSENT: "Y"
+      OMNI_KIT_ALLOW_ROOT: "1"
+      NVIDIA_VISIBLE_DEVICES: "0"
+      NVIDIA_DRIVER_CAPABILITIES: all
+      CUDA_VISIBLE_DEVICES: "0"
+      PYTHONPATH: /socialnav_humanoid_ws/unitree_sim_isaaclab:/socialnav_humanoid_ws/unitree_sdk2_python
+      MOTION_WORKSPACE: /socialnav_humanoid_ws
+      ISAAC_RUNNER_TASK: ${ISAAC_RUNNER_TASK:-Isaac-Flat-G129-Deployment-V1}
+      ISAAC_RUNNER_ASSET_PROFILE: ${ISAAC_RUNNER_ASSET_PROFILE:-g1_deployment_v1}
+      ISAAC_RUNNER_TRACE_HZ: ${ISAAC_RUNNER_TRACE_HZ:-5}
+      ISAAC_RUNNER_RESTART_DELAY_S: ${ISAAC_RUNNER_RESTART_DELAY_S:-1}
+      ISAAC_RUNNER_VISUAL_STATE_OUTPUT: /socialnav_humanoid_ws/motion_exchange/.runtime/g1_visual_state.bin
+      DDS_DOMAIN: "42"
+      DDS_INTERFACE: ${MOTION_DDS_INTERFACE:-lo}
+      SIM_LOWSTATE_TOPIC: rt/socialnav_sim/g1/lowstate
+      SIM_LOWCMD_TOPIC: rt/socialnav_sim/g1/lowcmd
+      OMNI_SERVER: http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.5
+    volumes:
+      - ..:/socialnav_humanoid_ws
+      - ${ISAAC_SIM_CACHE_ROOT:-/home/adcs-public-robot/docker/isaac-sim}/cache/kit:/isaac-sim/kit/cache
+      - ${ISAAC_SIM_CACHE_ROOT:-/home/adcs-public-robot/docker/isaac-sim}/cache/ov:/root/.cache/ov
+      - ${ISAAC_SIM_CACHE_ROOT:-/home/adcs-public-robot/docker/isaac-sim}/cache/pip:/root/.cache/pip
+      - ${ISAAC_SIM_CACHE_ROOT:-/home/adcs-public-robot/docker/isaac-sim}/cache/glcache:/root/.cache/nvidia/GLCache
+      - ${ISAAC_SIM_CACHE_ROOT:-/home/adcs-public-robot/docker/isaac-sim}/cache/computecache:/root/.nv/ComputeCache
+      - ${ISAAC_SIM_CACHE_ROOT:-/home/adcs-public-robot/docker/isaac-sim}/logs:/root/.nvidia-omniverse/logs
+      - ${ISAAC_SIM_CACHE_ROOT:-/home/adcs-public-robot/docker/isaac-sim}/data:/root/.local/share/ov/data
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["0"]
+              capabilities: [gpu]
+
+  isaac-visualizer:
+    profiles: ["gui"]
+    image: unitree_sim_isaaclab:isaacsim4.5-gui
+    container_name: isaac-visualizer
+    network_mode: host
+    ipc: host
+    shm_size: 16gb
+    # Rendering uses the remaining non-physics cores and never competes with
+    # the SONIC control set above.
+    cpuset: "16-19,40-43"
+    restart: unless-stopped
+    stop_grace_period: 30s
+    working_dir: /socialnav_humanoid_ws/unitree_sim_isaaclab
+    entrypoint: ["/bin/bash", "-lc"]
+    command:
+      - |
+        export CARB_APP_PATH=/isaac-sim/kit
+        export ISAAC_PATH=/isaac-sim
+        export EXP_PATH=/isaac-sim/apps
+        source /isaac-sim/setup_python_env.sh
+        export RESOURCE_NAME=IsaacSim
+        export LD_PRELOAD=/isaac-sim/kit/libcarb.so
+        exec /isaac-sim/kit/python/bin/python3 run_motion_pipeline_visualizer.py \
+        --task ${ISAAC_VISUALIZER_TASK:-Isaac-Flat-G129-Deployment-V1} \
+        --asset-profile ${ISAAC_VISUALIZER_ASSET_PROFILE:-g1_deployment_v1} \
+        --headless --livestream 2 --enable_cameras \
+        --experience /isaac-lab/apps/isaaclab.sonic_streaming.kit \
+        --rendering_mode quality \
+        --target-fps 30 --width 1920 --height 1080 \
+        --visual-state-input /socialnav_humanoid_ws/motion_exchange/.runtime/g1_visual_state.bin
+    environment:
+      ACCEPT_EULA: "Y"
+      PRIVACY_CONSENT: "Y"
+      OMNI_KIT_ALLOW_ROOT: "1"
+      NVIDIA_VISIBLE_DEVICES: "1"
+      NVIDIA_DRIVER_CAPABILITIES: all
+      CUDA_VISIBLE_DEVICES: "0"
+      PYTHONPATH: /socialnav_humanoid_ws/unitree_sim_isaaclab:/socialnav_humanoid_ws/unitree_sdk2_python
+    volumes:
+      - ..:/socialnav_humanoid_ws
+      - ./config/isaaclab.sonic_streaming.kit:/isaac-lab/apps/isaaclab.sonic_streaming.kit:ro
+      - ../.cache/isaac-sim-visualizer/cache/kit:/isaac-sim/kit/cache
+      - ../.cache/isaac-sim-visualizer/cache/ov:/root/.cache/ov
+      - ../.cache/isaac-sim-visualizer/cache/pip:/root/.cache/pip
+      - ../.cache/isaac-sim-visualizer/cache/glcache:/root/.cache/nvidia/GLCache
+      - ../.cache/isaac-sim-visualizer/cache/computecache:/root/.nv/ComputeCache
+      - ../.cache/isaac-sim-visualizer/logs:/root/.nvidia-omniverse/logs
+      - ../.cache/isaac-sim-visualizer/data:/root/.local/share/ov/data
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["1"]
+              capabilities: [gpu]
