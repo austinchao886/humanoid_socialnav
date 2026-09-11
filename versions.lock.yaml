@@ -44,10 +44,25 @@ dependencies:
 
 containers:
   sonic:
-    compose_image: social-motion/sonic:60c561b
+    compose_image: social-motion/sonic:60c561b-workspace-v2
     source_commit: 60c561b65d1ce2bba59c4cc752a8ffefb51d4884
-    local_image_id: sha256:2fd1a965687a211187ecac01065813617e46658fc77a101f756162612579bde9
+    pipeline_source_commit: 49e06452d936d51757483ea40c6d5e5859eb522f
+    local_image_id: sha256:efd7739800bcc0eb61c3a344554dd3b6304cae53f20e60cca3d4e4eb9728f366
     controller_binary_sha256: 5037bc53f4fc2007c9c3f0001d3db2ca43bc4cc3aba025c3e77b4df944d518a8
+    build_status: built-and-verified
+  kimodo:
+    compose_image: social-motion/kimodo:1aece8c-workspace-v2
+    source_commit: 1aece8c124d73d255ceff5086d983b844c9f4e94
+    pipeline_source_commit: 49e06452d936d51757483ea40c6d5e5859eb522f
+    local_image_id: sha256:c4d74c88f152bffbe681067f09d4d8e651683a8e478771033daae982e984c82c
+    build_status: built-and-verified
+  video_generator:
+    compose_image: social-motion/video-gem-gmr:16bebf4-bb1bbe4-workspace-v2
+    source_commits:
+      gem: 16bebf402d8893184249ee206d957b8248cd8310
+      gmr: bb1bbe40774794fceb2a7c579a3464a28e68c844
+    pipeline_source_commit: 49e06452d936d51757483ea40c6d5e5859eb522f
+    local_image_id: sha256:7325a9c9f4a83c4162653cb49211f3d8c43960b5ee958bbaac3da2156e44e799
     build_status: built-and-verified
   isaac:
     compose_image: unitree_sim_isaaclab:isaacsim4.5-gui
