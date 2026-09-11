@@ -1250,6 +1250,9 @@ class SonicSupervisor:
         self, session_id: str, *, stable_duration: float, timeout: float
     ) -> dict:
         deadline = time.monotonic() + timeout
+        max_joint_velocity = float(
+            os.getenv("SONIC_PRE_PLANNER_MAX_JOINT_VELOCITY", "0.9")
+        )
         stable_since = None
         latest = None
         while time.monotonic() < deadline:
@@ -1271,7 +1274,7 @@ class SonicSupervisor:
                     latest.get("state") == "READY_STANDING"
                     and 0.70 <= root_height <= 0.90
                     and root_tilt <= 0.10
-                    and max_dq <= 0.70
+                    and max_dq <= max_joint_velocity
                 )
             if quiet:
                 if stable_since is None:

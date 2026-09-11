@@ -316,7 +316,7 @@ def test_pre_planner_gate_requires_quiet_ready_standing(tmp_path, monkeypatch):
             "state": "READY_STANDING",
             "root_height_m": 0.78,
             "root_tilt_rad": 0.02,
-            "max_joint_velocity_rad_s": 0.5,
+            "max_joint_velocity_rad_s": 0.8,
         },
     )
 

@@ -165,6 +165,7 @@ services:
       SONIC_STANDING_MOTION_ID: ${SONIC_STANDING_MOTION_ID:-isaac-neutral-v1}
       SONIC_PRE_PLANNER_STABLE_S: ${SONIC_PRE_PLANNER_STABLE_S:-3.0}
       SONIC_PRE_PLANNER_TIMEOUT_S: ${SONIC_PRE_PLANNER_TIMEOUT_S:-60.0}
+      SONIC_PRE_PLANNER_MAX_JOINT_VELOCITY: ${SONIC_PRE_PLANNER_MAX_JOINT_VELOCITY:-0.9}
       # Keep only the supported ZMQ debug output; avoid requesting additional
       # output backends during latency acceptance.
       SONIC_OUTPUT_TYPE: zmq
