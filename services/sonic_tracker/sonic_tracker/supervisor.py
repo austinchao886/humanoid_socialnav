@@ -534,6 +534,19 @@ class SonicSupervisor:
                     f"SONIC did not preload approved motion: {command.motion_id}"
                 )
             if planner_enabled and self.runtime_mode == "JOYSTICK_LOCOMOTION":
+                # Persistent Isaac is unsupported while joystick locomotion is
+                # active.  Every approved offline artifact in this contract
+                # requires the bootstrap band during frame-zero settling, so
+                # reacquire it before changing the policy's reference source.
+                runtime_request["state"] = "REFERENCE_PREEMPT"
+                runtime_request["preempt_epoch_s"] = time.time()
+                self._write_runtime_request(runtime_request)
+                self._wait_for_isaac_state(
+                    command,
+                    isaac_ready["session_id"],
+                    "PREEMPT_SUPPORTED",
+                    timeout=30.0,
+                )
                 # Phase 1 stays on the gamepad delegate but forces the normal
                 # deadman-release path into its indexed neutral reference.
                 self._signal_runtime_mode(signal.SIGUSR1)
@@ -553,7 +566,7 @@ class SonicSupervisor:
                     timeout=float(
                         os.getenv("SONIC_PRE_REFERENCE_TIMEOUT_S", "60.0")
                     ),
-                    accepted_states={"INTERACTIVE"},
+                    accepted_states={"PREEMPT_SUPPORTED"},
                 )
                 # Phase 2 changes to keyboard/reference control without a
                 # second safety reset; the physical stability gate above makes
@@ -564,14 +577,27 @@ class SonicSupervisor:
                     timeout=5,
                 )
                 self.runtime_mode = "REFERENCE"
+                # Let Isaac load the reference contract and arm its effort
+                # handoff while the elastic band is still fully engaged.  The
+                # final atomic materialization happens only after this ack.
+                runtime_request["state"] = "SETTLING"
+                runtime_request["control_epoch_s"] = time.time()
+                self._write_runtime_request(runtime_request)
+                self._wait_for_isaac_state(
+                    command,
+                    isaac_ready["session_id"],
+                    "SETTLING",
+                    timeout=30.0,
+                )
             self._select_loaded_motion(command.motion_id)
             if not self.control_started:
                 self.child.send("]")
                 self._expect_or_abort([r"transitioning to CONTROL state"], timeout=10)
                 self.control_started = True
-            runtime_request["state"] = "SETTLING"
-            runtime_request["control_epoch_s"] = time.time()
-            self._write_runtime_request(runtime_request)
+            if runtime_request["state"] != "SETTLING":
+                runtime_request["state"] = "SETTLING"
+                runtime_request["control_epoch_s"] = time.time()
+                self._write_runtime_request(runtime_request)
             executing_status = self._wait_for_isaac_state(
                 command,
                 isaac_ready["session_id"],
