@@ -661,10 +661,11 @@ class SonicSupervisor:
                 )
                 if planner_enabled:
                     # Do not initialize the locomotion planner from residual
-                    # end-of-reference velocity. Hold the explicit neutral
-                    # reference until the unsupported robot is observably
-                    # quiet, then let the planner take over.
-                    self._select_loaded_motion(self._standing_motion_id())
+                    # reference-policy history. Play the explicit neutral
+                    # reference once to flush that history, wait until the
+                    # unsupported robot is observably quiet, and only then let
+                    # the planner take over.
+                    self._play_standing_reference()
                     self._wait_for_stable_standing(
                         isaac_ready["session_id"],
                         stable_duration=float(
@@ -1142,6 +1143,23 @@ class SonicSupervisor:
         if self.child is None or not self.child.isalive():
             raise RuntimeError("SONIC process was not started")
         os.kill(self.child.pid, requested_signal)
+
+    def _play_standing_reference(self) -> None:
+        standing_motion_id = self._standing_motion_id()
+        manifest = json.loads(
+            (self.exchange / standing_motion_id / "manifest.json").read_text()
+        )
+        frames = int(manifest["num_frames"])
+        fps = float(manifest["fps"])
+        self._select_loaded_motion(standing_motion_id)
+        self.child.send("T")
+        self._expect_or_abort(
+            [rf"Playing motion .*\({frames} total frames\)"], timeout=10
+        )
+        self._expect_or_abort(
+            [rf"Motion index: .* : {re_escape(standing_motion_id)} completed\."],
+            timeout=motion_completion_timeout_s(frames, fps, None),
+        )
 
     def _wait_or_abort(self, duration: float, watch_child: bool = False) -> None:
         deadline = time.monotonic() + duration
