@@ -1,0 +1,94 @@
+##
+# Minimal Isaac Lab viewport for the SONIC WebRTC execution endpoint.
+#
+# The stock livestream path selects isaaclab.python.kit, which starts the full
+# editor and makes a 20 FPS viewport too expensive for the 200 Hz safety loop.
+# The headless rendering experience supplies RTX/viewport rendering without the
+# editor.  AppLauncher still expects the toolbar while livestreaming, so keep
+# that one UI dependency explicitly.
+##
+
+[package]
+title = "SONIC Isaac Lab WebRTC"
+description = "Minimal WebRTC viewport for the qualified SONIC G1 endpoint"
+version = "1.0.0"
+keywords = ["experience", "isaaclab", "sonic", "webrtc", "minimal"]
+
+[dependencies]
+"isaaclab.python.headless" = {}
+"omni.replicator.core" = {}
+"omni.kit.material.library" = {}
+"omni.kit.viewport.rtx" = {}
+"omni.kit.widget.toolbar" = {}
+"isaacsim.gui.components" = {}
+
+[settings.isaaclab]
+cameras_enabled = true
+
+[settings]
+app.enableStdoutOutput = false
+app.audio.enabled = false
+app.fastShutdown = true
+app.gatherRenderResults = false
+app.asyncRendering = true
+app.asyncRenderingLowLatency = true
+app.omni.usd.asyncHandshake = true
+app.renderer.waitIdle = false
+app.hydraEngine.waitIdle = false
+omni.replicator.asyncRendering = true
+renderer.multiGpu.maxGpuCount = 1
+renderer.asyncInit = true
+rtx.translucency.enabled = false
+rtx.reflections.enabled = true
+rtx.indirectDiffuse.enabled = true
+rtx.ambientOcclusion.enabled = true
+rtx.raytracing.cached.enabled = false
+rtx.directLighting.sampledLighting.enabled = false
+rtx.post.dlss.execMode = 2
+rtx.shadows.enabled = true
+exts."omni.renderer.core".present.enabled = false
+exts."omni.replicator.core".Orchestrator.enabled = false
+exts."isaacsim.core.throttling".enable_async = false
+
+# Keep fine grid/robot detail through WebRTC while retaining low latency.
+exts."omni.videoencoding".bitrate = 25165824
+exts."omni.videoencoding".framerate = 30.0
+exts."omni.videoencoding".iframeinterval = 30
+exts."omni.videoencoding".preset = "PRESET_LOW_LATENCY_HQ"
+exts."omni.videoencoding".profile = "H264_PROFILE_HIGH"
+exts."omni.videoencoding".rcMode = "RC_CBR_LOWDELAY_HQ"
+exts."omni.videoencoding".rcTargetQuality = 18
+# WebRTC/browser H.264 uses limited-range video. Advertising full range here
+# makes clients expand luma/chroma twice and produces washed or crushed colors.
+exts."omni.videoencoding".vui.videoFullRangeFlag = false
+
+[settings.app.renderer]
+resolution.width = 1920
+resolution.height = 1080
+skipWhileMinimized = false
+sleepMsOnFocus = 0
+sleepMsOutOfFocus = 0
+
+[settings.physics]
+updateToUsd = false
+updateParticlesToUsd = false
+updateVelocitiesToUsd = false
+updateForceSensorsToUsd = false
+visualizationDisplayJoints = false
+visualizationSimulationOutput = false
+
+[settings.app.exts]
+folders = [
+    "${exe-path}/exts",
+    "${exe-path}/extscore",
+    "${exe-path}/../exts",
+    "${exe-path}/../extsDeprecated",
+    "${exe-path}/../extscache",
+    "${exe-path}/../extsPhysics",
+    "${exe-path}/../isaacsim/exts",
+    "${exe-path}/../isaacsim/extsDeprecated",
+    "${exe-path}/../isaacsim/extscache",
+    "${exe-path}/../isaacsim/extsPhysics",
+    "/isaac-lab/apps",
+    "/isaac-lab/source",
+]

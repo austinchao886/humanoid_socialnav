@@ -1,0 +1,127 @@
+import csv
+import json
+import time
+
+import numpy as np
+
+from motion_pipeline.sonic_supervisor import (
+    SonicSupervisor,
+    motion_completion_timeout_s,
+    prepare_sonic_reference_view,
+    reference_root_heights,
+)
+
+
+def test_sonic_reference_view_preserves_absolute_joint_positions(tmp_path):
+    artifact = tmp_path / "artifact"
+    artifact.mkdir()
+    absolute = np.linspace(-0.7, 0.7, 29, dtype=np.float64)
+    rows = np.vstack((absolute, absolute + 0.125))
+    np.savetxt(
+        artifact / "joint_pos.csv",
+        rows,
+        delimiter=",",
+        header=",".join(f"joint_{index}" for index in range(29)),
+        comments="",
+    )
+    (artifact / "metadata.txt").write_text("immutable\n")
+
+    destination = tmp_path / "view"
+    prepare_sonic_reference_view(artifact, destination)
+
+    converted = np.loadtxt(destination / "joint_pos.csv", delimiter=",", skiprows=1)
+    assert np.allclose(converted, rows)
+    assert (destination / "joint_pos.csv").is_symlink()
+    assert (destination / "metadata.txt").is_symlink()
+    assert (artifact / "metadata.txt").read_text() == "immutable\n"
+
+
+def test_sonic_reference_view_rejects_wrong_width(tmp_path):
+    artifact = tmp_path / "artifact"
+    artifact.mkdir()
+    with (artifact / "joint_pos.csv").open("w", newline="") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(["joint_0"])
+        writer.writerow([0.0])
+
+    import pytest
+
+    with pytest.raises(Exception, match="29 columns"):
+        prepare_sonic_reference_view(artifact, tmp_path / "view")
+
+
+def test_sonic_reference_view_rejects_non_finite_values(tmp_path):
+    artifact = tmp_path / "artifact"
+    artifact.mkdir()
+    with (artifact / "joint_pos.csv").open("w", newline="") as handle:
+        writer = csv.writer(handle)
+        writer.writerow([f"joint_{index}" for index in range(29)])
+        writer.writerow([0.0] * 28 + [float("nan")])
+
+    import pytest
+
+    with pytest.raises(Exception, match="non-finite"):
+        prepare_sonic_reference_view(artifact, tmp_path / "view")
+
+
+def test_reference_root_heights_uses_pelvis_z_column(tmp_path):
+    path = tmp_path / "body_pos.csv"
+    path.write_text(
+        "body_0_x,body_0_y,body_0_z,body_1_x\n"
+        "0.0,0.0,0.79,1.0\n"
+        "0.1,0.0,0.31,1.1\n"
+    )
+
+    assert reference_root_heights(path) == [0.79, 0.31]
+
+
+def test_reference_root_heights_rejects_empty_reference(tmp_path):
+    path = tmp_path / "body_pos.csv"
+    path.write_text("body_0_x,body_0_y,body_0_z\n")
+
+    import pytest
+
+    with pytest.raises(RuntimeError, match="no root-height samples"):
+        reference_root_heights(path)
+
+
+def test_motion_completion_timeout_accounts_for_slow_gui_rtf():
+    timeout = motion_completion_timeout_s(549, 50.0, 0.066)
+
+    assert timeout > 360.0
+
+
+def test_motion_completion_timeout_keeps_legacy_guard_without_rtf():
+    assert motion_completion_timeout_s(549, 50.0, None) == 139.8
+
+
+def test_supervisor_requires_exact_qualified_non_diagnostic_asset_profile(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setenv("SONIC_ASSET_PROFILE", "sonic_official_g1")
+    monkeypatch.setenv("SONIC_ISAAC_TASK", "Isaac-Flat-G129-SONIC-Official")
+    supervisor = SonicSupervisor(tmp_path, tmp_path, object())
+    status = {
+        "task": "Isaac-Flat-G129-SONIC-Official",
+        "asset_profile": "sonic_official_g1",
+        "asset_profile_qualified": True,
+        "diagnostic_only": False,
+        "state": "READY",
+        "updated_epoch_s": time.time(),
+        "session_id": "session",
+    }
+    supervisor.isaac_status_path.write_text(json.dumps(status))
+    assert supervisor._require_isaac_ready()["session_id"] == "session"
+
+    import pytest
+
+    status["asset_profile"] = "g1_dex1_wholebody"
+    supervisor.isaac_status_path.write_text(json.dumps(status))
+    with pytest.raises(RuntimeError, match="wrong Isaac asset profile"):
+        supervisor._require_isaac_ready()
+
+    status["asset_profile"] = "sonic_official_g1"
+    status["diagnostic_only"] = True
+    supervisor.isaac_status_path.write_text(json.dumps(status))
+    with pytest.raises(RuntimeError, match="diagnostic-only"):
+        supervisor._require_isaac_ready()
