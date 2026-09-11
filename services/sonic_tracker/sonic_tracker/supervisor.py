@@ -535,10 +535,11 @@ class SonicSupervisor:
                     f"SONIC did not preload approved motion: {command.motion_id}"
                 )
             if planner_enabled and self.runtime_mode == "JOYSTICK_LOCOMOTION":
-                # This reserved InterfaceManager key atomically leaves
-                # gamepad/planner mode through the manager's
-                # safety reset before any offline reference is selected.
-                self.child.send("{")
+                # SIGUSR1 asks InterfaceManager's 100 Hz input loop to leave
+                # gamepad/planner mode through its safety reset before any
+                # offline reference is selected. This control-plane signal is
+                # deterministic even when the pseudo-terminal is long-lived.
+                self._signal_runtime_mode(signal.SIGUSR1)
                 self._expect_or_abort(
                     [r"\[InterfaceManager\] Runtime mode: REFERENCE"],
                     timeout=5,
@@ -1136,6 +1137,11 @@ class SonicSupervisor:
             time.sleep(0.03)
         self.current_motion_index = target_index
 
+    def _signal_runtime_mode(self, requested_signal: signal.Signals) -> None:
+        if self.child is None or not self.child.isalive():
+            raise RuntimeError("SONIC process was not started")
+        os.kill(self.child.pid, requested_signal)
+
     def _wait_or_abort(self, duration: float, watch_child: bool = False) -> None:
         deadline = time.monotonic() + duration
         while time.monotonic() < deadline:
@@ -1188,10 +1194,10 @@ class SonicSupervisor:
 
         if self.child is None or not self.child.isalive():
             raise RuntimeError("cannot enter joystick mode without a live SONIC process")
-        # This reserved InterfaceManager key switches delegates, performs its
-        # safety reset, then requests planner activation after that reset has
+        # SIGUSR2 asks InterfaceManager to switch delegates, perform its
+        # safety reset, and request planner activation after that reset has
         # been consumed by Gamepad::update().
-        self.child.send("}")
+        self._signal_runtime_mode(signal.SIGUSR2)
         self._expect_or_abort(
             [r"\[InterfaceManager\] Runtime mode: JOYSTICK_PLANNER"],
             timeout=5,

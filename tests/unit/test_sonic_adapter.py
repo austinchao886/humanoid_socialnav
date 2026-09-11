@@ -1,5 +1,6 @@
 import csv
 import json
+import signal
 import time
 
 import numpy as np
@@ -177,6 +178,7 @@ def test_supervisor_enters_native_joystick_planner_mode(tmp_path, monkeypatch):
     class FakeChild:
         def __init__(self):
             self.sent = []
+            self.pid = 4242
 
         def isalive(self):
             return True
@@ -202,6 +204,11 @@ def test_supervisor_enters_native_joystick_planner_mode(tmp_path, monkeypatch):
         "_wait_for_isaac_runtime_mode",
         lambda session_id, state, timeout: waited.append((session_id, state, timeout)),
     )
+    sent_signals = []
+    monkeypatch.setattr(
+        "sonic_tracker.supervisor.os.kill",
+        lambda pid, requested_signal: sent_signals.append((pid, requested_signal)),
+    )
 
     request = {
         "state": "IDLE",
@@ -210,7 +217,8 @@ def test_supervisor_enters_native_joystick_planner_mode(tmp_path, monkeypatch):
     }
     supervisor._enter_joystick_locomotion(request, "same-session")
 
-    assert child.sent == ["}"]
+    assert child.sent == []
+    assert sent_signals == [(4242, signal.SIGUSR2)]
     assert supervisor.runtime_mode == "JOYSTICK_LOCOMOTION"
     assert written[-1]["state"] == "INTERACTIVE"
     assert written[-1]["interactive_source"] == "unitree_wireless_remote"
