@@ -1139,21 +1139,18 @@ class SonicSupervisor:
         forward = (target_index - self.current_motion_index) % motion_count
         backward = (self.current_motion_index - target_index) % motion_count
         key, count = ("N", forward) if forward <= backward else ("P", backward)
-        # Interface safety reset may leave current_motion pointing at a
-        # temporary planner snapshot even though current_motion_index still
-        # names this target. U asks the keyboard interface to materialize the
-        # indexed motion directly, avoiding a transient adjacent reference.
-        if count == 0:
-            self.child.send("U")
-            self._expect_or_abort(
-                [rf"Materialized motion .* : {re_escape(motion_id)} at frame 0"],
-                timeout=5,
-            )
-        else:
-            self.child.send("R")
-            for _ in range(count):
-                self.child.send(key)
-                time.sleep(0.03)
+        # D makes N/P update only the reader index. U atomically materializes
+        # the final target, so the 100 Hz policy loop never observes any of the
+        # intermediate references traversed by index selection.
+        self.child.send("D")
+        for _ in range(count):
+            self.child.send(key)
+            time.sleep(0.03)
+        self.child.send("U")
+        self._expect_or_abort(
+            [rf"Materialized motion .* : {re_escape(motion_id)} at frame 0"],
+            timeout=5,
+        )
         self.current_motion_index = target_index
 
     def _signal_runtime_mode(self, requested_signal: signal.Signals) -> None:
