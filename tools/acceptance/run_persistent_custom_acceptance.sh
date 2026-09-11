@@ -3,6 +3,7 @@ set -euo pipefail
 
 workspace="${MOTION_WORKSPACE:-/home/adcs-public-robot/Documents/socialnav_humanoid_ws}"
 dds_interface="${DDS_INTERFACE:-lo}"
+motion_cli_container="${MOTION_CLI_CONTAINER:-sonic-tracker}"
 status_path="$workspace/motion_exchange/.runtime/isaac_status.json"
 active_timeout_s="${ACTIVE_TIMEOUT_S:-90}"
 terminal_timeout_s="${TERMINAL_TIMEOUT_S:-240}"
@@ -58,7 +59,7 @@ for motion_id in "${motions[@]}"; do
   request_id="$(/usr/bin/python3 -c \
     "import json; print(json.load(open('$workspace/motion_exchange/$motion_id/manifest.json'))['request_id'])")"
   approval_epoch_s="$(/usr/bin/python3 -c 'import time; print(time.time())')"
-  docker exec kimodo motion-cli --domain 42 --interface "$dds_interface" control \
+  docker exec "$motion_cli_container" motion-cli --domain 42 --interface "$dds_interface" control \
     approve_execute "$request_id" "$motion_id" >/dev/null || true
 
   active=false
