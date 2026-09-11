@@ -7,7 +7,6 @@ import math
 import os
 import queue
 import re
-import shlex
 import shutil
 import signal
 import tempfile
@@ -1080,17 +1079,14 @@ class SonicSupervisor:
                 "localhost",
             )
         )
-        command_line = " ".join(
-            shlex.quote(str(value)) for value in command_values
-        )
         self.child_log_handle = log.open(
             "a" if self.persistent_process else "w", buffering=1
         )
         child_env = os.environ.copy()
         child_env.setdefault("SONIC_SIM_HISTORY_WARMUP_TICKS", "10")
         self.child = pexpect.spawn(
-            "bash",
-            ["-lc", command_line],
+            str(command_values[0]),
+            [str(value) for value in command_values[1:]],
             encoding="utf-8",
             timeout=180,
             env=child_env,
