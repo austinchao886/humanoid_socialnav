@@ -1,5 +1,8 @@
 FROM pytorch/pytorch:2.6.0-cuda12.4-cudnn9-runtime
 
+ARG PIPELINE_COMMIT=unknown
+LABEL org.opencontainers.image.revision=$PIPELINE_COMMIT
+
 ENV DEBIAN_FRONTEND=noninteractive PYTHONUNBUFFERED=1 GEM_ROOT=/opt/GEM GMR_ROOT=/opt/GMR \
     PYOPENGL_PLATFORM=egl MUJOCO_GL=egl
 

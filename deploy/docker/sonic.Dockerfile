@@ -1,6 +1,9 @@
 ARG CUDA_VERSION=12.4.1
 FROM nvidia/cuda:${CUDA_VERSION}-devel-ubuntu22.04
 
+ARG PIPELINE_COMMIT=unknown
+LABEL org.opencontainers.image.revision=$PIPELINE_COMMIT
+
 ENV DEBIAN_FRONTEND=noninteractive PYTHONUNBUFFERED=1
 RUN apt-get update && apt-get install -y --no-install-recommends python3 python3-pip python3-venv git curl wget cmake clang build-essential libeigen3-dev libyaml-cpp-dev libzmq3-dev libmsgpack-dev nlohmann-json3-dev libgtest-dev \
     "libnvinfer-dev=10.13.3.9-1+cuda12.9" \

@@ -1,5 +1,8 @@
 FROM nvcr.io/nvidia/pytorch:24.10-py3
 
+ARG PIPELINE_COMMIT=unknown
+LABEL org.opencontainers.image.revision=$PIPELINE_COMMIT
+
 ENV DEBIAN_FRONTEND=noninteractive PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONUNBUFFERED=1
 WORKDIR /workspace/kimodo
 RUN apt-get update && apt-get install -y --no-install-recommends git curl ca-certificates cmake build-essential ffmpeg gosu && rm -rf /var/lib/apt/lists/*

@@ -51,4 +51,5 @@ git lfs install --local
 git -C vendor/kimodo lfs pull
 git -C vendor/GR00T-WholeBodyControl lfs pull
 python3 vendor/GR00T-WholeBodyControl/download_from_hf.py
-docker compose -f docker-compose.motion.yml build
+PIPELINE_COMMIT="$(git rev-parse HEAD)" \
+  docker compose -f docker-compose.motion.yml build

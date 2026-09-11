@@ -5,7 +5,9 @@ services:
     build:
       context: .
       dockerfile: deploy/docker/kimodo.Dockerfile
-    image: social-motion/kimodo:1aece8c
+      args:
+        PIPELINE_COMMIT: ${PIPELINE_COMMIT:-unknown}
+    image: social-motion/kimodo:1aece8c-workspace-v2
     container_name: kimodo
     network_mode: host
     ipc: host
@@ -38,7 +40,9 @@ services:
     build:
       context: .
       dockerfile: deploy/docker/video.Dockerfile
-    image: social-motion/video-gem-gmr:16bebf4-bb1bbe4
+      args:
+        PIPELINE_COMMIT: ${PIPELINE_COMMIT:-unknown}
+    image: social-motion/video-gem-gmr:16bebf4-bb1bbe4-workspace-v2
     container_name: video-generator
     network_mode: host
     ipc: host
@@ -102,7 +106,9 @@ services:
     build:
       context: .
       dockerfile: deploy/docker/sonic.Dockerfile
-    image: social-motion/sonic:60c561b
+      args:
+        PIPELINE_COMMIT: ${PIPELINE_COMMIT:-unknown}
+    image: social-motion/sonic:60c561b-workspace-v2
     container_name: sonic-tracker
     network_mode: host
     ipc: host

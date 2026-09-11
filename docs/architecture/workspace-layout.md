@@ -62,3 +62,9 @@ workspace path.
 
 The pinned Unitree fork is the only source of truth for Isaac simulator and
 action-provider code. This repository does not keep copied Isaac overlays.
+
+Locally built service tags include the pinned upstream revision and the
+`workspace-v2` layout generation. `tools/bootstrap/bootstrap.sh` also writes the
+exact integration-repository commit into the OCI
+`org.opencontainers.image.revision` label; `versions.lock.yaml` records the
+resulting immutable image ID.
