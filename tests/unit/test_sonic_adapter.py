@@ -244,7 +244,7 @@ def test_select_loaded_motion_materializes_same_index_reference(tmp_path, monkey
 
     supervisor._select_loaded_motion("neutral")
 
-    assert child.sent == ["R", "N"]
+    assert child.sent == ["R", "N", "P"]
     assert supervisor.current_motion_index == 0
 
 

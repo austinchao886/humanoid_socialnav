@@ -1125,12 +1125,17 @@ class SonicSupervisor:
         key, count = ("N", forward) if forward <= backward else ("P", backward)
         # Interface safety reset may leave current_motion pointing at a
         # temporary planner snapshot even though current_motion_index still
-        # names this target. Force one selection event in the zero-distance
-        # case so the concrete preloaded reference is materialized.
-        selection_count = count if count > 0 else 1
-        for _ in range(selection_count):
-            self.child.send(key)
+        # names this target. In the zero-distance case, move to an adjacent
+        # concrete motion and back so the target itself is materialized.
+        if count == 0:
+            self.child.send("N")
             time.sleep(0.03)
+            self.child.send("P")
+            time.sleep(0.03)
+        else:
+            for _ in range(count):
+                self.child.send(key)
+                time.sleep(0.03)
         self.current_motion_index = target_index
 
     def _signal_runtime_mode(self, requested_signal: signal.Signals) -> None:
