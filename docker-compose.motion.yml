@@ -108,7 +108,7 @@ services:
       dockerfile: deploy/docker/sonic.Dockerfile
       args:
         PIPELINE_COMMIT: ${PIPELINE_COMMIT:-unknown}
-    image: social-motion/sonic:60c561b-workspace-v2
+    image: social-motion/sonic:196f27c-workspace-v3
     container_name: sonic-tracker
     network_mode: host
     ipc: host
