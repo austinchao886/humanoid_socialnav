@@ -142,6 +142,7 @@ class SonicSupervisor:
         self.exchange = exchange.resolve()
         self.sonic_root = sonic_root
         self.dds = dds
+        self.started_epoch_s = time.time()
         self.queue: queue.Queue[tuple[str, float, str]] = queue.Queue()
         self.child: pexpect.spawn | None = None
         self.execution_thread: threading.Thread | None = None
@@ -970,7 +971,13 @@ class SonicSupervisor:
         last_error = "Isaac runtime has not reported readiness"
         while time.monotonic() < deadline:
             try:
-                return self._require_isaac_ready()
+                status = self._require_isaac_ready()
+                if float(status.get("updated_epoch_s", 0.0)) < self.started_epoch_s:
+                    raise RuntimeError(
+                        "Isaac readiness belongs to a session heartbeat from "
+                        "before this supervisor started"
+                    )
+                return status
             except RuntimeError as exc:
                 last_error = str(exc)
                 time.sleep(1.0)

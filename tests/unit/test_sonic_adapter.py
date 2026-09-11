@@ -216,3 +216,25 @@ def test_supervisor_enters_native_joystick_planner_mode(tmp_path, monkeypatch):
     assert written[-1]["interactive_source"] == "unitree_wireless_remote"
     assert waited == [("same-session", "INTERACTIVE", 30.0)]
     assert len(expected_patterns) == 2
+
+
+def test_interactive_bootstrap_ignores_pre_start_isaac_heartbeat(
+    tmp_path, monkeypatch
+):
+    supervisor = SonicSupervisor(tmp_path, tmp_path, object())
+    statuses = iter(
+        [
+            {
+                "session_id": "old-session",
+                "updated_epoch_s": supervisor.started_epoch_s - 1.0,
+            },
+            {
+                "session_id": "new-session",
+                "updated_epoch_s": supervisor.started_epoch_s + 1.0,
+            },
+        ]
+    )
+    monkeypatch.setattr(supervisor, "_require_isaac_ready", lambda: next(statuses))
+    monkeypatch.setattr(time, "sleep", lambda _seconds: None)
+
+    assert supervisor._wait_for_isaac_ready(timeout=1.0)["session_id"] == "new-session"
