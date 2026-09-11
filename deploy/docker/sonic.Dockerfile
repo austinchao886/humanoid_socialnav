@@ -19,7 +19,12 @@ RUN wget -q https://github.com/microsoft/onnxruntime/releases/download/v1.22.0/o
     && mkdir -p /opt/onnxruntime \
     && tar -xzf /tmp/onnxruntime.tgz --strip-components=1 -C /opt/onnxruntime \
     && rm /tmp/onnxruntime.tgz
-COPY vendor/GR00T-WholeBodyControl /sonic
+# Build only the deploy runtime. Policy/planner assets are mutable, GPU-specific
+# runtime data and are mounted by Compose instead of being baked into the image.
+COPY vendor/GR00T-WholeBodyControl/gear_sonic_deploy/CMakeLists.txt /sonic/gear_sonic_deploy/CMakeLists.txt
+COPY vendor/GR00T-WholeBodyControl/gear_sonic_deploy/cmake /sonic/gear_sonic_deploy/cmake
+COPY vendor/GR00T-WholeBodyControl/gear_sonic_deploy/src /sonic/gear_sonic_deploy/src
+COPY vendor/GR00T-WholeBodyControl/gear_sonic_deploy/thirdparty /sonic/gear_sonic_deploy/thirdparty
 COPY pyproject.toml /pipeline/pyproject.toml
 COPY motion_pipeline /pipeline/motion_pipeline
 COPY packages /pipeline/packages
