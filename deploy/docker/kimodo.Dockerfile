@@ -8,6 +8,9 @@ COPY vendor/kimodo/setup.py vendor/kimodo/pyproject.toml ./
 COPY vendor/kimodo/kimodo ./kimodo
 COPY vendor/kimodo/kimodo-viser ./kimodo-viser
 COPY vendor/kimodo/MotionCorrection ./MotionCorrection
+# The NGC base image adds pypi.ngc.nvidia.com as an extra index. It is not
+# needed for these pinned packages and makes every lookup wait on DNS fallback.
+ENV PIP_CONFIG_FILE=/dev/null
 RUN rm -f /usr/local/bin/cmake && SKIP_MOTION_CORRECTION_IN_SETUP=1 python -m pip install -r docker_requirements.txt
 COPY pyproject.toml /pipeline/pyproject.toml
 COPY motion_pipeline /pipeline/motion_pipeline
