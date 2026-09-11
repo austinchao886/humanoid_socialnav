@@ -543,6 +543,10 @@ class SonicSupervisor:
                     [r"\[InterfaceManager\] Runtime mode: REFERENCE"],
                     timeout=5,
                 )
+                self._expect_or_abort(
+                    [r"Safety reset: Returned to reference motion at frame 0"],
+                    timeout=5,
+                )
                 self.runtime_mode = "REFERENCE"
             self._select_loaded_motion(command.motion_id)
             if not self.control_started:
@@ -1122,7 +1126,12 @@ class SonicSupervisor:
         forward = (target_index - self.current_motion_index) % motion_count
         backward = (self.current_motion_index - target_index) % motion_count
         key, count = ("N", forward) if forward <= backward else ("P", backward)
-        for _ in range(count):
+        # Interface safety reset may leave current_motion pointing at a
+        # temporary planner snapshot even though current_motion_index still
+        # names this target. Force one selection event in the zero-distance
+        # case so the concrete preloaded reference is materialized.
+        selection_count = count if count > 0 else 1
+        for _ in range(selection_count):
             self.child.send(key)
             time.sleep(0.03)
         self.current_motion_index = target_index

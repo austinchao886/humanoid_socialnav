@@ -218,6 +218,28 @@ def test_supervisor_enters_native_joystick_planner_mode(tmp_path, monkeypatch):
     assert len(expected_patterns) == 2
 
 
+def test_select_loaded_motion_materializes_same_index_reference(tmp_path, monkeypatch):
+    supervisor = SonicSupervisor(tmp_path, tmp_path, object())
+
+    class FakeChild:
+        def __init__(self):
+            self.sent = []
+
+        def send(self, value):
+            self.sent.append(value)
+
+    child = FakeChild()
+    supervisor.child = child
+    supervisor.loaded_motion_indexes = {"neutral": 0}
+    supervisor.current_motion_index = 0
+    monkeypatch.setattr(time, "sleep", lambda _seconds: None)
+
+    supervisor._select_loaded_motion("neutral")
+
+    assert child.sent == ["R", "N"]
+    assert supervisor.current_motion_index == 0
+
+
 def test_interactive_bootstrap_ignores_pre_start_isaac_heartbeat(
     tmp_path, monkeypatch
 ):
