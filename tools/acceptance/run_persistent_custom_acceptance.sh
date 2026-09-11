@@ -95,6 +95,7 @@ for motion_id in "${motions[@]}"; do
     state="$(read_status_field state)"
     session="$(read_status_field session_id)"
     active_motion="$(read_status_field motion_id)"
+    last_motion="$(read_status_field last_motion_id)"
     if [ "$session" = "$ready_session" ] \
       && [ "$active_motion" = "$motion_id" ]; then
       case "$state" in
@@ -103,6 +104,15 @@ for motion_id in "${motions[@]}"; do
           break
           ;;
       esac
+    elif [ "$session" = "$ready_session" ] \
+      && [ "$state" = "READY_STANDING" ] \
+      && [ "$last_motion" = "$motion_id" ]; then
+      # COMPLETED is an internal supervisor/Isaac acknowledgement and may be
+      # shorter than this polling interval. READY_STANDING + last_motion_id is
+      # the stable external completion signal for a reusable session.
+      terminal=true
+      state="COMPLETED"
+      break
     fi
     sleep 0.2
   done
