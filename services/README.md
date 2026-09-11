@@ -1,5 +1,8 @@
 # Services
 
+- `joystick_bridge`: simulation-only loopback bridge for a Mac-connected PS4
+  controller; see `docs/how-to/ps4-isaac-sim.md`.
+
 This directory owns code that is specific to one runtime service or container.
 Shared DDS contracts, artifact rules, validation, and robot compatibility
 profiles live in `packages/motion_contracts`. Each service owns its installable

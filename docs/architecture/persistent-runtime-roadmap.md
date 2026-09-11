@@ -45,11 +45,17 @@ simulator restart is part of a successful switch. The simulator exposes
 `INTERACTIVE` as an execution-ready state so a new approved reference can
 preempt locomotion.
 
-The physical joystick path can only be movement-tested with a Unitree wireless
-remote packet source; the simulator's default LowState intentionally carries a
-zeroed remote packet. Simulator acceptance therefore covers persistent idle
-planner balance and `INTERACTIVE -> offline reference -> INTERACTIVE`; physical
-acceptance separately covers F2 deadman, stick locomotion, and Select stop.
+For simulation development, a loopback TCP bridge accepts normalized controls
+from a PS4 controller connected to the developer Mac and republishes them on
+`rt/motion/joystick/cmd`. Isaac validates freshness and is still the sole
+LowState publisher: it encodes only fresh bridge commands into
+`LowState.wireless_remote`. A 200 ms timeout forces a neutral packet and releases
+F2. This adapter is simulation-only and does not publish physical robot state.
+The native Unitree wireless remote remains a separate physical acceptance path.
+
+The simulation acceptance sequence is PS4 locomotion, deadman release to
+standing, approved offline/video reference preemption, neutral return, and PS4
+locomotion again without changing the Isaac session or SONIC process.
 
 After phase 2, add a validated abort-to-standing transition and then the Pico 4
 Ultra live-reference source with freshness/deadman rules. An unvalidated

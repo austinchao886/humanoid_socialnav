@@ -222,6 +222,8 @@ services:
       DDS_INTERFACE: ${MOTION_DDS_INTERFACE:-lo}
       SIM_LOWSTATE_TOPIC: rt/socialnav_sim/g1/lowstate
       SIM_LOWCMD_TOPIC: rt/socialnav_sim/g1/lowcmd
+      SIM_JOYSTICK_TOPIC: rt/motion/joystick/cmd
+      SIM_JOYSTICK_STALE_AFTER_S: ${SIM_JOYSTICK_STALE_AFTER_S:-0.2}
       OMNI_SERVER: http://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.5
     volumes:
       - ${SOCIALNAV_WORKSPACE_HOST:-..}:/socialnav_humanoid_ws
