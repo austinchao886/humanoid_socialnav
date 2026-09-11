@@ -45,10 +45,10 @@ simulator restart is part of a successful switch. The simulator exposes
 `INTERACTIVE` as an execution-ready state so a new approved reference can
 preempt locomotion.
 
-For simulation development, a loopback TCP bridge accepts normalized controls
-from a PS4 controller connected to the developer Mac and republishes them on
-`rt/motion/joystick/cmd`. Isaac validates freshness and is still the sole
-LowState publisher: it encodes only fresh bridge commands into
+For simulation development, an Isaac-owned loopback TCP adapter accepts
+normalized controls from a PS4 controller connected to the developer Mac.
+Isaac validates freshness and is still the sole LowState publisher: it encodes
+only fresh input commands into
 `LowState.wireless_remote`. A 200 ms timeout forces a neutral packet and releases
 F2. This adapter is simulation-only and does not publish physical robot state.
 The native Unitree wireless remote remains a separate physical acceptance path.

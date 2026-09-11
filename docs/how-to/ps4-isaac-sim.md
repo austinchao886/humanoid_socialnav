@@ -10,9 +10,7 @@ only `LowState` publisher.
 PS4 on Mac
   -> ps4_client.py (normalized controls, 50 Hz)
   -> SSH local-forwarded TCP 16042
-  -> ps4-joystick-bridge in sonic-tracker
-  -> rt/motion/joystick/cmd (DDS domain 42, loopback)
-  -> Isaac runner freshness/sequence validation
+  -> Isaac runner loopback input adapter (freshness/sequence validation)
   -> LowState.wireless_remote
   -> Gear SONIC native Gamepad input
 ```
@@ -24,14 +22,8 @@ forces neutral input.
 
 ## Start
 
-Start `isaac-runner`, `isaac-visualizer`, and `sonic-tracker` as usual. On the
-server, from the motion pipeline repository, run:
-
-```bash
-tools/run/run_ps4_bridge.sh
-```
-
-On the Mac, open the SSH tunnel:
+Start `isaac-runner`, `isaac-visualizer`, and `sonic-tracker` as usual. The
+Isaac runner owns the remote loopback listener. On the Mac, open the SSH tunnel:
 
 ```bash
 ssh -N -L 16042:127.0.0.1:16042 adcspublicrobot-codex
@@ -52,8 +44,8 @@ returns the same session to `INTERACTIVE`.
 
 ## Safety boundary
 
-The bridge binds to remote loopback only and DDS is also restricted to `lo`.
-It cannot publish the simulator's physical state or command topics. A malformed,
-out-of-order, or stale command is rejected or converted to a zeroed Unitree
-remote packet. This is a development adapter, not the eventual hardware input
-transport.
+The adapter binds to remote loopback only. It cannot publish the simulator's
+physical state or command topics; Isaac remains the sole LowState publisher. A
+malformed, out-of-order, or stale command is rejected or converted to a zeroed
+Unitree remote packet. This is a development adapter, not the eventual hardware
+input transport.

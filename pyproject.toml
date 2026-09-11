@@ -9,7 +9,6 @@ motion-service = "motion_generator.service:main"
 video-motion-service = "video_generator.service:main"
 video-assets-check = "video_generator.assets:main"
 sonic-supervisor = "sonic_tracker.supervisor:main"
-ps4-joystick-bridge = "joystick_bridge.service:main"
 motion-cli = "motion_pipeline.cli:main"
 motion-validate = "motion_contracts.validator:main"
 
@@ -21,7 +20,6 @@ where = [
   ".",
   "packages/motion_contracts",
   "services/isaac_runtime",
-  "services/joystick_bridge",
   "services/motion_generator",
   "services/sonic_tracker",
   "services/video_generator",
@@ -30,7 +28,6 @@ include = [
   "motion_pipeline*",
   "motion_contracts*",
   "isaac_runtime*",
-  "joystick_bridge*",
   "motion_generator*",
   "sonic_tracker*",
   "video_generator*",
