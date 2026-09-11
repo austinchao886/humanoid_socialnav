@@ -535,10 +535,10 @@ class SonicSupervisor:
                     f"SONIC did not preload approved motion: {command.motion_id}"
                 )
             if planner_enabled and self.runtime_mode == "JOYSTICK_LOCOMOTION":
-                # File Separator is an internal InterfaceManager command. It
-                # atomically leaves gamepad/planner mode through the manager's
+                # This reserved InterfaceManager key atomically leaves
+                # gamepad/planner mode through the manager's
                 # safety reset before any offline reference is selected.
-                self.child.send("\x1c")
+                self.child.send("{")
                 self._expect_or_abort(
                     [r"\[InterfaceManager\] Runtime mode: REFERENCE"],
                     timeout=5,
@@ -1165,10 +1165,10 @@ class SonicSupervisor:
 
         if self.child is None or not self.child.isalive():
             raise RuntimeError("cannot enter joystick mode without a live SONIC process")
-        # Group Separator is reserved for the supervisor. InterfaceManager
-        # switches delegates, performs its safety reset, then requests planner
-        # activation after that reset has been consumed by Gamepad::update().
-        self.child.send("\x1d")
+        # This reserved InterfaceManager key switches delegates, performs its
+        # safety reset, then requests planner activation after that reset has
+        # been consumed by Gamepad::update().
+        self.child.send("}")
         self._expect_or_abort(
             [r"\[InterfaceManager\] Runtime mode: JOYSTICK_PLANNER"],
             timeout=5,

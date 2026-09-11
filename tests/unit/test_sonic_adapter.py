@@ -210,7 +210,7 @@ def test_supervisor_enters_native_joystick_planner_mode(tmp_path, monkeypatch):
     }
     supervisor._enter_joystick_locomotion(request, "same-session")
 
-    assert child.sent == ["\x1d"]
+    assert child.sent == ["}"]
     assert supervisor.runtime_mode == "JOYSTICK_LOCOMOTION"
     assert written[-1]["state"] == "INTERACTIVE"
     assert written[-1]["interactive_source"] == "unitree_wireless_remote"
