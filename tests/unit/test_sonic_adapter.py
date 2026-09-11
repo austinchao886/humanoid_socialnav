@@ -241,10 +241,11 @@ def test_select_loaded_motion_materializes_same_index_reference(tmp_path, monkey
     supervisor.loaded_motion_indexes = {"neutral": 0}
     supervisor.current_motion_index = 0
     monkeypatch.setattr(time, "sleep", lambda _seconds: None)
+    monkeypatch.setattr(supervisor, "_expect_or_abort", lambda *_args, **_kwargs: 0)
 
     supervisor._select_loaded_motion("neutral")
 
-    assert child.sent == ["R", "N", "P"]
+    assert child.sent == ["U"]
     assert supervisor.current_motion_index == 0
 
 
@@ -278,10 +279,11 @@ def test_standing_flush_plays_concrete_neutral_reference(tmp_path, monkeypatch):
 
     supervisor._play_standing_reference()
 
-    assert child.sent == ["R", "N", "P", "T"]
-    assert len(expected) == 2
-    assert "200 total frames" in expected[0][0][0]
-    assert "neutral" in expected[1][0][0]
+    assert child.sent == ["U", "T"]
+    assert len(expected) == 3
+    assert "Materialized motion" in expected[0][0][0]
+    assert "200 total frames" in expected[1][0][0]
+    assert "neutral" in expected[2][0][0]
 
 
 def test_interactive_bootstrap_ignores_pre_start_isaac_heartbeat(

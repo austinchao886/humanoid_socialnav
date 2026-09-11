@@ -548,6 +548,22 @@ class SonicSupervisor:
                     timeout=5,
                 )
                 self.runtime_mode = "REFERENCE"
+                # Planner locomotion leaves recurrent policy history in a
+                # different distribution from an offline reference. Flush it
+                # through the explicit neutral trajectory before selecting the
+                # approved motion; switching the index directly can produce a
+                # discontinuous target and tip an unsupported robot.
+                self._play_standing_reference()
+                self._wait_for_stable_standing(
+                    isaac_ready["session_id"],
+                    stable_duration=float(
+                        os.getenv("SONIC_PRE_REFERENCE_STABLE_S", "3.0")
+                    ),
+                    timeout=float(
+                        os.getenv("SONIC_PRE_REFERENCE_TIMEOUT_S", "60.0")
+                    ),
+                    accepted_states={"INTERACTIVE"},
+                )
             self._select_loaded_motion(command.motion_id)
             if not self.control_started:
                 self.child.send("]")
@@ -1119,21 +1135,22 @@ class SonicSupervisor:
         if motion_id not in self.loaded_motion_indexes:
             raise RuntimeError(f"SONIC did not preload approved motion: {motion_id}")
         target_index = self.loaded_motion_indexes[motion_id]
-        self.child.send("R")
         motion_count = len(self.loaded_motion_indexes)
         forward = (target_index - self.current_motion_index) % motion_count
         backward = (self.current_motion_index - target_index) % motion_count
         key, count = ("N", forward) if forward <= backward else ("P", backward)
         # Interface safety reset may leave current_motion pointing at a
         # temporary planner snapshot even though current_motion_index still
-        # names this target. In the zero-distance case, move to an adjacent
-        # concrete motion and back so the target itself is materialized.
+        # names this target. U asks the keyboard interface to materialize the
+        # indexed motion directly, avoiding a transient adjacent reference.
         if count == 0:
-            self.child.send("N")
-            time.sleep(0.03)
-            self.child.send("P")
-            time.sleep(0.03)
+            self.child.send("U")
+            self._expect_or_abort(
+                [rf"Materialized motion .* : {re_escape(motion_id)} at frame 0"],
+                timeout=5,
+            )
         else:
+            self.child.send("R")
             for _ in range(count):
                 self.child.send(key)
                 time.sleep(0.03)
@@ -1247,8 +1264,15 @@ class SonicSupervisor:
         raise RuntimeError(f"timed out waiting for Isaac state={desired_state}")
 
     def _wait_for_stable_standing(
-        self, session_id: str, *, stable_duration: float, timeout: float
+        self,
+        session_id: str,
+        *,
+        stable_duration: float,
+        timeout: float,
+        accepted_states: set[str] | None = None,
     ) -> dict:
+        if accepted_states is None:
+            accepted_states = {"READY_STANDING"}
         deadline = time.monotonic() + timeout
         max_joint_velocity = float(
             os.getenv("SONIC_PRE_PLANNER_MAX_JOINT_VELOCITY", "0.9")
@@ -1271,7 +1295,7 @@ class SonicSupervisor:
                 quiet = False
             else:
                 quiet = bool(
-                    latest.get("state") == "READY_STANDING"
+                    latest.get("state") in accepted_states
                     and 0.70 <= root_height <= 0.90
                     and root_tilt <= 0.10
                     and max_dq <= max_joint_velocity
