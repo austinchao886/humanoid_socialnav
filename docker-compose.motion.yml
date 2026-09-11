@@ -200,7 +200,7 @@ services:
       NVIDIA_VISIBLE_DEVICES: "0"
       NVIDIA_DRIVER_CAPABILITIES: all
       CUDA_VISIBLE_DEVICES: "0"
-      PYTHONPATH: /socialnav_humanoid_ws/unitree_sim_isaaclab:/socialnav_humanoid_ws/unitree_sdk2_python
+      PYTHONPATH: /socialnav_humanoid_ws/unitree_sim_isaaclab:/socialnav_humanoid_ws/unitree_sdk2_python:/socialnav_humanoid_ws/motion_pipeline:/socialnav_humanoid_ws/motion_pipeline/packages/motion_contracts:/socialnav_humanoid_ws/motion_pipeline/services/isaac_runtime
       MOTION_WORKSPACE: /socialnav_humanoid_ws
       ISAAC_RUNNER_TASK: ${ISAAC_RUNNER_TASK:-Isaac-Flat-G129-Deployment-V1}
       ISAAC_RUNNER_ASSET_PROFILE: ${ISAAC_RUNNER_ASSET_PROFILE:-g1_deployment_v1}
@@ -269,7 +269,7 @@ services:
       NVIDIA_VISIBLE_DEVICES: "1"
       NVIDIA_DRIVER_CAPABILITIES: all
       CUDA_VISIBLE_DEVICES: "0"
-      PYTHONPATH: /socialnav_humanoid_ws/unitree_sim_isaaclab:/socialnav_humanoid_ws/unitree_sdk2_python
+      PYTHONPATH: /socialnav_humanoid_ws/unitree_sim_isaaclab:/socialnav_humanoid_ws/unitree_sdk2_python:/socialnav_humanoid_ws/motion_pipeline:/socialnav_humanoid_ws/motion_pipeline/packages/motion_contracts:/socialnav_humanoid_ws/motion_pipeline/services/isaac_runtime
     volumes:
       - ${SOCIALNAV_WORKSPACE_HOST:-..}:/socialnav_humanoid_ws
       - .:/socialnav_humanoid_ws/motion_pipeline:ro
