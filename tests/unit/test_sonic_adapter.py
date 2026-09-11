@@ -11,6 +11,7 @@ from sonic_tracker.supervisor import (
     prepare_sonic_reference_view,
     reference_root_heights,
 )
+from motion_contracts.protocol import ControlCommand, ProtocolError
 
 
 def test_sonic_reference_view_preserves_absolute_joint_positions(tmp_path):
@@ -224,6 +225,50 @@ def test_supervisor_enters_native_joystick_planner_mode(tmp_path, monkeypatch):
     assert written[-1]["interactive_source"] == "unitree_wireless_remote"
     assert waited == [("same-session", "INTERACTIVE", 180.0)]
     assert len(expected_patterns) == 2
+
+
+def test_preflight_rejection_preserves_healthy_interactive_controller(
+    tmp_path, monkeypatch
+):
+    class FakeDDS:
+        def __init__(self):
+            self.published = []
+
+        def publish(self, topic, payload):
+            self.published.append((topic, payload))
+
+    class FakeChild:
+        def isalive(self):
+            return True
+
+    dds = FakeDDS()
+    supervisor = SonicSupervisor(tmp_path, tmp_path, dds)
+    supervisor.child = FakeChild()
+    supervisor.runtime_mode = "JOYSTICK_LOCOMOTION"
+    stopped = []
+    monkeypatch.setattr(
+        supervisor,
+        "_execute",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            ProtocolError("request_id does not own motion_id")
+        ),
+    )
+    monkeypatch.setattr(supervisor, "_stop", lambda: stopped.append(True))
+
+    supervisor._execute_guarded(
+        ControlCommand(
+            schema_version=1,
+            request_id="wrong",
+            motion_id="motion",
+            action="approve_execute",
+        ),
+        time.monotonic(),
+        "2026-09-11T00:00:00+00:00",
+        0.0,
+    )
+
+    assert stopped == []
+    assert dds.published
 
 
 def test_select_loaded_motion_materializes_same_index_reference(tmp_path, monkeypatch):

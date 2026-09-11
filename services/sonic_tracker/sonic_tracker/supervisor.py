@@ -319,9 +319,23 @@ class SonicSupervisor:
                         error={"message": str(exc)},
                     ),
                 )
-            # A failed/safety-aborted execution may have left controller state
-            # inconsistent.  Never reuse that process for another motion.
-            self._stop()
+            preflight_rejection = isinstance(exc, ProtocolError)
+            healthy_interactive_runtime = bool(
+                self.persistent_process
+                and self.runtime_mode == "JOYSTICK_LOCOMOTION"
+                and self.child is not None
+                and self.child.isalive()
+            )
+            if not (preflight_rejection and healthy_interactive_runtime):
+                # A failure after runtime mutation may have left controller
+                # state inconsistent. Never reuse that process.
+                self._stop()
+            else:
+                print(
+                    "[sonic-supervisor] preflight rejected; preserving "
+                    f"interactive controller: {exc}",
+                    flush=True,
+                )
         finally:
             if not self.persistent_process:
                 self._stop()
