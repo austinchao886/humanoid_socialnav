@@ -7,6 +7,8 @@ asset_profile="${ISAAC_RUNNER_ASSET_PROFILE:-g1_deployment_v1}"
 dds_domain="${DDS_DOMAIN:-42}"
 dds_interface="${DDS_INTERFACE:-lo}"
 trace_hz="${ISAAC_RUNNER_TRACE_HZ:-5}"
+command_timeout_s="${ISAAC_RUNNER_COMMAND_TIMEOUT_S:-0.5}"
+standing_command_timeout_s="${ISAAC_RUNNER_STANDING_COMMAND_TIMEOUT_S:-1.0}"
 restart_delay_s="${ISAAC_RUNNER_RESTART_DELAY_S:-1}"
 runtime_mode="${ISAAC_RUNNER_MODE:-persistent}"
 visual_state_output="${ISAAC_RUNNER_VISUAL_STATE_OUTPUT:-$workspace/motion_exchange/.runtime/g1_visual_state.bin}"
@@ -43,6 +45,8 @@ while true; do
     --asset-profile "$asset_profile" \
     --headless \
     "${lifecycle_args[@]}" \
+    --sonic-command-timeout "$command_timeout_s" \
+    --standing-command-timeout "$standing_command_timeout_s" \
     --trace-hz "$trace_hz" \
     --visual-state-output "$visual_state_output" \
     >"$log_path" 2>&1

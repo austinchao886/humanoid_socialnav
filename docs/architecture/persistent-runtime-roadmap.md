@@ -23,7 +23,9 @@ Phase 1 separates a successful command from the simulator process lifecycle.
 The first approved reference performs the supported SONIC handoff. After the
 reference and monitored post-hold finish, Isaac acknowledges `COMPLETED`, then
 returns to `READY_STANDING` in the same `session_id`; the SONIC process and its
-policy/TensorRT state remain loaded. Any stale LowCmd, unsafe state, execution
+policy/TensorRT state remain loaded. The LowCmd watchdog is phase-aware: active
+motion uses a 0.5 s deadline and idle standing uses a bounded 1.0 s deadline to
+tolerate host scheduling jitter. Any stale LowCmd beyond those limits, unsafe state, execution
 failure, or abort enters the fail-safe path and starts a clean supported
 session instead of automatically accepting another motion.
 
