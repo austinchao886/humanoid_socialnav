@@ -534,26 +534,17 @@ class SonicSupervisor:
                     f"SONIC did not preload approved motion: {command.motion_id}"
                 )
             if planner_enabled and self.runtime_mode == "JOYSTICK_LOCOMOTION":
-                # SIGUSR1 asks InterfaceManager's 100 Hz input loop to leave
-                # gamepad/planner mode through its safety reset before any
-                # offline reference is selected. This control-plane signal is
-                # deterministic even when the pseudo-terminal is long-lived.
+                # Phase 1 stays on the gamepad delegate but forces the normal
+                # deadman-release path into its indexed neutral reference.
                 self._signal_runtime_mode(signal.SIGUSR1)
                 self._expect_or_abort(
-                    [r"\[InterfaceManager\] Runtime mode: REFERENCE"],
+                    [r"\[InterfaceManager\] Runtime mode: REFERENCE_STANDBY"],
                     timeout=5,
                 )
                 self._expect_or_abort(
-                    [r"Safety reset: Returned to reference motion at frame 0"],
+                    [r"\[Gamepad\] Runtime joystick standby: disabled"],
                     timeout=5,
                 )
-                self.runtime_mode = "REFERENCE"
-                # Planner locomotion leaves recurrent policy history in a
-                # different distribution from an offline reference. Flush it
-                # through the explicit neutral trajectory before selecting the
-                # approved motion; switching the index directly can produce a
-                # discontinuous target and tip an unsupported robot.
-                self._play_standing_reference()
                 self._wait_for_stable_standing(
                     isaac_ready["session_id"],
                     stable_duration=float(
@@ -564,6 +555,15 @@ class SonicSupervisor:
                     ),
                     accepted_states={"INTERACTIVE"},
                 )
+                # Phase 2 changes to keyboard/reference control without a
+                # second safety reset; the physical stability gate above makes
+                # that no-reset delegate handoff explicit and bounded.
+                self._signal_runtime_mode(signal.SIGUSR1)
+                self._expect_or_abort(
+                    [r"\[InterfaceManager\] Runtime mode: REFERENCE"],
+                    timeout=5,
+                )
+                self.runtime_mode = "REFERENCE"
             self._select_loaded_motion(command.motion_id)
             if not self.control_started:
                 self.child.send("]")
