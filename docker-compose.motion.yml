@@ -205,6 +205,7 @@ services:
       ISAAC_RUNNER_TASK: ${ISAAC_RUNNER_TASK:-Isaac-Flat-G129-Deployment-V1}
       ISAAC_RUNNER_ASSET_PROFILE: ${ISAAC_RUNNER_ASSET_PROFILE:-g1_deployment_v1}
       ISAAC_RUNNER_TRACE_HZ: ${ISAAC_RUNNER_TRACE_HZ:-5}
+      ISAAC_RUNNER_MODE: ${ISAAC_RUNNER_MODE:-persistent}
       ISAAC_RUNNER_RESTART_DELAY_S: ${ISAAC_RUNNER_RESTART_DELAY_S:-1}
       ISAAC_RUNNER_VISUAL_STATE_OUTPUT: /socialnav_humanoid_ws/motion_exchange/.runtime/g1_visual_state.bin
       DDS_DOMAIN: "42"

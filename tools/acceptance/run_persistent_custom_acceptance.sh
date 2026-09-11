@@ -23,17 +23,22 @@ read_status_field() {
 }
 
 wait_for_ready() {
-  local previous_session="${1:-}"
+  local expected_session="${1:-}"
+  local expected_last_motion="${2:-}"
   local attempts=$((ready_timeout_s * 5))
   for _ in $(seq 1 "$attempts"); do
-    local state session profile
+    local state session profile last_motion
     state="$(read_status_field state)"
     session="$(read_status_field session_id)"
     profile="$(read_status_field asset_profile)"
-    if [ "$state" = "READY" ] \
+    last_motion="$(read_status_field last_motion_id)"
+    if { [ "$state" = "READY" ] || [ "$state" = "READY_STANDING" ]; } \
       && [ "$profile" = "g1_deployment_v1" ] \
       && [ -n "$session" ] \
-      && [ "$session" != "$previous_session" ]; then
+      && { [ -z "$expected_session" ] || [ "$session" = "$expected_session" ]; } \
+      && { [ -z "$expected_last_motion" ] \
+        || { [ "$state" = "READY_STANDING" ] \
+          && [ "$last_motion" = "$expected_last_motion" ]; }; }; then
       printf '%s\n' "$session"
       return 0
     fi
@@ -46,6 +51,8 @@ ready_session="$(wait_for_ready)" || {
   echo "FAILED reason=initial_ready_timeout" >&2
   exit 1
 }
+isaac_pid="$(docker exec isaac-runner pgrep -o -f run_motion_pipeline_sim.py)"
+sonic_pid=""
 
 for motion_id in "${motions[@]}"; do
   request_id="$(/usr/bin/python3 -c \
@@ -72,6 +79,13 @@ for motion_id in "${motions[@]}"; do
   done
   if [ "$active" != true ]; then
     echo "FAILED motion=$motion_id reason=approval_not_received session=$ready_session" >&2
+    exit 1
+  fi
+  current_sonic_pid="$(docker exec sonic-tracker pgrep -o -f g1_deploy_onnx_ref)"
+  if [ -z "$sonic_pid" ]; then
+    sonic_pid="$current_sonic_pid"
+  elif [ "$current_sonic_pid" != "$sonic_pid" ]; then
+    echo "FAILED motion=$motion_id reason=sonic_process_changed expected=$sonic_pid actual=$current_sonic_pid" >&2
     exit 1
   fi
 
@@ -118,16 +132,21 @@ print(json.dumps({
     "physics_step_p50_ms": physics["p50_ms"],
     "physics_step_p95_ms": physics["p95_ms"],
     "lowcmd_age_p95_ms": perf["lowcmd"]["lowcmd_age_p95_ms"],
-    "report_path": report["trace_path"].replace(".jsonl", ".json"),
+    "report_path": sys.argv[1],
 }, sort_keys=True))
 PY
 )"
 
   next_ready_started="$(/usr/bin/python3 -c 'import time; print(time.time())')"
-  next_session="$(wait_for_ready "$ready_session")" || {
-    echo "FAILED motion=$motion_id reason=next_ready_timeout" >&2
+  next_session="$(wait_for_ready "$ready_session" "$motion_id")" || {
+    echo "FAILED motion=$motion_id reason=same_session_ready_standing_timeout" >&2
     exit 1
   }
+  current_isaac_pid="$(docker exec isaac-runner pgrep -o -f run_motion_pipeline_sim.py)"
+  if [ "$current_isaac_pid" != "$isaac_pid" ]; then
+    echo "FAILED motion=$motion_id reason=isaac_process_changed expected=$isaac_pid actual=$current_isaac_pid" >&2
+    exit 1
+  fi
   next_ready_epoch_s="$(/usr/bin/python3 -c 'import time; print(time.time())')"
   /usr/bin/python3 - "$metrics" "$next_ready_started" "$next_ready_epoch_s" "$next_session" <<'PY'
 import json
@@ -136,7 +155,7 @@ import sys
 metrics = json.loads(sys.argv[1])
 metrics["terminal_to_next_ready_wall_s"] = float(sys.argv[3]) - float(sys.argv[2])
 metrics["next_session_id"] = sys.argv[4]
+metrics["same_session"] = metrics["session_id"] == sys.argv[4]
 print(json.dumps(metrics, sort_keys=True))
 PY
-  ready_session="$next_session"
 done

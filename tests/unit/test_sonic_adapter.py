@@ -125,3 +125,24 @@ def test_supervisor_requires_exact_qualified_non_diagnostic_asset_profile(
     supervisor.isaac_status_path.write_text(json.dumps(status))
     with pytest.raises(RuntimeError, match="diagnostic-only"):
         supervisor._require_isaac_ready()
+
+
+def test_supervisor_accepts_persistent_ready_standing(tmp_path, monkeypatch):
+    monkeypatch.setenv("SONIC_ASSET_PROFILE", "sonic_official_g1")
+    monkeypatch.setenv("SONIC_ISAAC_TASK", "Isaac-Flat-G129-SONIC-Official")
+    supervisor = SonicSupervisor(tmp_path, tmp_path, object())
+    supervisor.isaac_status_path.write_text(
+        json.dumps(
+            {
+                "task": "Isaac-Flat-G129-SONIC-Official",
+                "asset_profile": "sonic_official_g1",
+                "asset_profile_qualified": True,
+                "diagnostic_only": False,
+                "state": "READY_STANDING",
+                "updated_epoch_s": time.time(),
+                "session_id": "persistent-session",
+            }
+        )
+    )
+
+    assert supervisor._require_isaac_ready()["session_id"] == "persistent-session"

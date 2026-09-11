@@ -22,7 +22,7 @@ dependencies:
     repository: https://github.com/austinchao886/unitree_sim_isaaclab.git
     upstream: https://github.com/unitreerobotics/unitree_sim_isaaclab.git
     branch: social-motion/sonic-pipeline-sim
-    commit: 28a9944ef7ab0d61242cffe454e2a2329fbd39fb
+    commit: d122af28220072efcfb9ace7f477856313535ff1
     management: bootstrap-workspace-checkout
   unitree_sdk2_python:
     repository: https://github.com/unitreerobotics/unitree_sdk2_python.git

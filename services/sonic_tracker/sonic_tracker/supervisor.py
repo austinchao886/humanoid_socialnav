@@ -29,6 +29,10 @@ from motion_pipeline.core.latency import (
     utc_now,
 )
 from motion_pipeline.runtime.dds_transport import JsonDDS
+from motion_pipeline.runtime_lifecycle import (
+    TERMINAL_FAILURE_STATES,
+    require_execution_ready,
+)
 
 
 SONIC_LOOP_TIMING_RE = re.compile(
@@ -698,14 +702,11 @@ class SonicSupervisor:
                 command, isaac_ready["session_id"], timeout=10.0
             )
             if self.persistent_process:
-                self._write_runtime_request(
-                    {
-                        "schema_version": 1,
-                        "state": "IDLE",
-                        "request_id": command.request_id,
-                        "motion_id": command.motion_id,
-                        "idle_epoch_s": time.time(),
-                    }
+                runtime_request["state"] = "IDLE"
+                runtime_request["idle_epoch_s"] = time.time()
+                self._write_runtime_request(runtime_request)
+                self._wait_for_isaac_idle(
+                    isaac_ready["session_id"], command.motion_id, timeout=10.0
                 )
             isaac_performance = isaac_result.get("performance") or {}
             if self.child_log_handle is not None:
@@ -826,13 +827,7 @@ class SonicSupervisor:
             )
         if status.get("diagnostic_only"):
             raise RuntimeError("Isaac endpoint is diagnostic-only and cannot execute motion")
-        if status.get("state") != "READY":
-            raise RuntimeError(f"official Isaac endpoint is not READY: {status.get('state')}")
-        age = time.time() - float(status.get("updated_epoch_s", 0.0))
-        if age > 5.0:
-            raise RuntimeError(f"official Isaac READY heartbeat is stale: age={age:.2f}s")
-        if not status.get("session_id"):
-            raise RuntimeError("official Isaac runtime status has no session_id")
+        require_execution_ready(status, now_epoch_s=time.time())
         return status
 
     def _runtime_failure(self) -> str | None:
@@ -845,9 +840,31 @@ class SonicSupervisor:
             return str(exc)
         if status.get("motion_id") not in {None, command.motion_id}:
             return None
-        if status.get("state") in {"UNSAFE", "FAILED"}:
+        if status.get("state") in TERMINAL_FAILURE_STATES:
             return str(status.get("reason") or f"Isaac state={status.get('state')}")
         return None
+
+    def _wait_for_isaac_idle(
+        self, session_id: str, last_motion_id: str, timeout: float
+    ) -> dict:
+        """Wait until the same simulator session is standing and reusable."""
+
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            status = self._read_isaac_status()
+            if status.get("session_id") != session_id:
+                raise RuntimeError("Isaac execution session changed while returning to stand")
+            if (
+                status.get("state") == "READY_STANDING"
+                and status.get("last_motion_id") == last_motion_id
+            ):
+                return status
+            if status.get("state") in TERMINAL_FAILURE_STATES:
+                raise RuntimeError(
+                    str(status.get("reason") or f"Isaac state={status.get('state')}")
+                )
+            time.sleep(0.1)
+        raise RuntimeError("timed out waiting for persistent Isaac standing state")
 
     def _wait_for_isaac_state(
         self,
