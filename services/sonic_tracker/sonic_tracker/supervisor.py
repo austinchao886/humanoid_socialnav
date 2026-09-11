@@ -1221,7 +1221,7 @@ class SonicSupervisor:
             [r"\[InterfaceManager\] Runtime mode: JOYSTICK_PLANNER"],
             timeout=5,
         )
-        self._expect_or_abort([r"\[Gamepad\] motion name is planner_motion"], timeout=15)
+        self._expect_or_abort([r"\[Gamepad\] Runtime joystick standby: ready"], timeout=5)
         self.runtime_mode = "JOYSTICK_LOCOMOTION"
         runtime_request["state"] = "INTERACTIVE"
         runtime_request["interactive_source"] = "unitree_wireless_remote"
