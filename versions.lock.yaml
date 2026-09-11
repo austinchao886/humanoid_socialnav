@@ -46,8 +46,8 @@ containers:
   sonic:
     compose_image: social-motion/sonic:60c561b-workspace-v2
     source_commit: 60c561b65d1ce2bba59c4cc752a8ffefb51d4884
-    pipeline_source_commit: 49e06452d936d51757483ea40c6d5e5859eb522f
-    local_image_id: sha256:efd7739800bcc0eb61c3a344554dd3b6304cae53f20e60cca3d4e4eb9728f366
+    pipeline_source_commit: ca1a62f73773f3fb219d5988398da7d098e15366
+    local_image_id: sha256:318c12ea642397899e9231eb51e2894537ba5ced20c306c933677188a985b33f
     controller_binary_sha256: 5037bc53f4fc2007c9c3f0001d3db2ca43bc4cc3aba025c3e77b4df944d518a8
     build_status: built-and-verified
   kimodo:
