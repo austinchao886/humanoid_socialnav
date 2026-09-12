@@ -168,7 +168,18 @@ class SonicSupervisor:
         self.current_motion_index = 0
         self.control_started = False
         self.runtime_mode = "STOPPED"
+        self.interactive_session_id: str | None = None
+        self.next_interactive_recovery_monotonic = 0.0
         self.child_log_handle = None
+
+    def _interactive_runtime_requested(self) -> bool:
+        return bool(
+            self.persistent_process
+            and os.getenv("SONIC_INTERACTIVE_RUNTIME", "1")
+            not in {"0", "false", "False"}
+            and os.getenv("SONIC_ENABLE_PLANNER", "0")
+            not in {"0", "false", "False"}
+        )
 
     def run(self) -> None:
         def receive(raw: str) -> None:
@@ -201,13 +212,7 @@ class SonicSupervisor:
             f"asset_profile={self.required_asset_profile} ",
             flush=True,
         )
-        if (
-            self.persistent_process
-            and os.getenv("SONIC_INTERACTIVE_RUNTIME", "1")
-            not in {"0", "false", "False"}
-            and os.getenv("SONIC_ENABLE_PLANNER", "0")
-            not in {"0", "false", "False"}
-        ):
+        if self._interactive_runtime_requested():
             try:
                 self._bootstrap_interactive_runtime()
             except Exception as exc:
@@ -221,7 +226,11 @@ class SonicSupervisor:
                 )
                 self._stop()
         while True:
-            raw, received_monotonic, received_at = self.queue.get()
+            try:
+                raw, received_monotonic, received_at = self.queue.get(timeout=0.5)
+            except queue.Empty:
+                self._maintain_interactive_runtime()
+                continue
             queue_wait_s = time.monotonic() - received_monotonic
             try:
                 command = ControlCommand.parse(raw)
@@ -234,6 +243,74 @@ class SonicSupervisor:
             except Exception as exc:
                 request_id, motion_id = _ids(raw)
                 self.dds.publish(STATUS_TOPIC, status_json(request_id, State.FAILED, motion_id=motion_id, error={"message": str(exc)}))
+
+    def _maintain_interactive_runtime(self) -> None:
+        """Recover joystick control after an Isaac or SONIC process restart.
+
+        This runs on the supervisor's main event loop only while no command is
+        being handled. Motion execution owns the controller from its worker
+        thread, so recovery waits until that worker has finished.
+        """
+
+        if not self._interactive_runtime_requested():
+            return
+        with self.lock:
+            execution_active = bool(
+                self.active_command is not None
+                or (
+                    self.execution_thread is not None
+                    and self.execution_thread.is_alive()
+                )
+            )
+        if execution_active:
+            return
+
+        now = time.monotonic()
+        if now < self.next_interactive_recovery_monotonic:
+            return
+        try:
+            status = self._require_isaac_ready()
+        except RuntimeError:
+            return
+
+        session_id = str(status["session_id"])
+        child_alive = bool(self.child is not None and self.child.isalive())
+        if (
+            child_alive
+            and self.runtime_mode == "JOYSTICK_LOCOMOTION"
+            and self.interactive_session_id == session_id
+        ):
+            return
+
+        reasons = []
+        if self.interactive_session_id != session_id:
+            reasons.append(
+                f"Isaac session {self.interactive_session_id or 'none'} -> {session_id}"
+            )
+        if not child_alive:
+            reasons.append("SONIC controller is not alive")
+        if self.runtime_mode != "JOYSTICK_LOCOMOTION":
+            reasons.append(f"runtime mode is {self.runtime_mode}")
+        print(
+            "[sonic-supervisor] recovering interactive runtime: "
+            + "; ".join(reasons),
+            flush=True,
+        )
+
+        self._stop()
+        try:
+            self._bootstrap_interactive_runtime()
+        except Exception as exc:
+            self._stop()
+            retry_s = float(os.getenv("SONIC_INTERACTIVE_RECOVERY_RETRY_S", "5"))
+            self.next_interactive_recovery_monotonic = time.monotonic() + retry_s
+            print(
+                "[sonic-supervisor] interactive recovery failed; "
+                f"retrying in {retry_s:.1f}s: {exc}",
+                flush=True,
+            )
+        else:
+            self.next_interactive_recovery_monotonic = 0.0
 
     def _handle(
         self,
@@ -1038,6 +1115,7 @@ class SonicSupervisor:
         self._enter_joystick_locomotion(
             runtime_request, isaac_ready["session_id"], timeout=180.0
         )
+        self.interactive_session_id = str(isaac_ready["session_id"])
         print(
             "[sonic-supervisor] INTERACTIVE joystick runtime ready "
             f"session={isaac_ready['session_id']} standing={standing_motion_id}",
@@ -1262,6 +1340,7 @@ class SonicSupervisor:
         self.current_motion_index = 0
         self.control_started = False
         self.runtime_mode = "STOPPED"
+        self.interactive_session_id = None
 
     def _enter_joystick_locomotion(
         self, runtime_request: dict, session_id: str, timeout: float = 180.0

@@ -271,6 +271,97 @@ def test_preflight_rejection_preserves_healthy_interactive_controller(
     assert dds.published
 
 
+def test_interactive_runtime_maintenance_recovers_changed_isaac_session(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setenv("SONIC_ENABLE_PLANNER", "1")
+    supervisor = SonicSupervisor(tmp_path, tmp_path, object())
+
+    class FakeChild:
+        def isalive(self):
+            return True
+
+    supervisor.child = FakeChild()
+    supervisor.runtime_mode = "JOYSTICK_LOCOMOTION"
+    supervisor.interactive_session_id = "old-session"
+    monkeypatch.setattr(
+        supervisor,
+        "_require_isaac_ready",
+        lambda: {"session_id": "new-session", "state": "READY"},
+    )
+    stopped = []
+    bootstrapped = []
+
+    def stop():
+        stopped.append(True)
+        supervisor.child = None
+        supervisor.runtime_mode = "STOPPED"
+        supervisor.interactive_session_id = None
+
+    monkeypatch.setattr(supervisor, "_stop", stop)
+    monkeypatch.setattr(
+        supervisor, "_bootstrap_interactive_runtime", lambda: bootstrapped.append(True)
+    )
+
+    supervisor._maintain_interactive_runtime()
+
+    assert stopped == [True]
+    assert bootstrapped == [True]
+
+
+def test_interactive_runtime_maintenance_leaves_matching_session_alone(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setenv("SONIC_ENABLE_PLANNER", "1")
+    supervisor = SonicSupervisor(tmp_path, tmp_path, object())
+
+    class FakeChild:
+        def isalive(self):
+            return True
+
+    supervisor.child = FakeChild()
+    supervisor.runtime_mode = "JOYSTICK_LOCOMOTION"
+    supervisor.interactive_session_id = "same-session"
+    monkeypatch.setattr(
+        supervisor,
+        "_require_isaac_ready",
+        lambda: {"session_id": "same-session", "state": "INTERACTIVE"},
+    )
+    recovered = []
+    monkeypatch.setattr(
+        supervisor,
+        "_bootstrap_interactive_runtime",
+        lambda: recovered.append(True),
+    )
+
+    supervisor._maintain_interactive_runtime()
+
+    assert recovered == []
+
+
+def test_interactive_runtime_maintenance_waits_for_motion_worker(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setenv("SONIC_ENABLE_PLANNER", "1")
+    supervisor = SonicSupervisor(tmp_path, tmp_path, object())
+    supervisor.active_command = ControlCommand(
+        schema_version=1,
+        request_id="request",
+        motion_id="motion",
+        action="approve_execute",
+    )
+    checked = []
+    monkeypatch.setattr(
+        supervisor,
+        "_require_isaac_ready",
+        lambda: checked.append(True),
+    )
+
+    supervisor._maintain_interactive_runtime()
+
+    assert checked == []
+
+
 def test_select_loaded_motion_materializes_same_index_reference(tmp_path, monkeypatch):
     supervisor = SonicSupervisor(tmp_path, tmp_path, object())
 
