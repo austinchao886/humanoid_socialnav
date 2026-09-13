@@ -299,3 +299,115 @@ Simulator checkpoint: `37d9bb0` in unitree_sim_isaaclab. The functional
 switching/settled-standing improvement is ready for simulation use; sporadic
 L1 stop transients, realtime performance, smooth abort-to-standing and Pico
 live-reference integration remain open. No hardware qualification is implied.
+
+## Stop-transient follow-up: distinguish motion from velocity bias
+
+The prior 8/4 same-session and standing passes did not guarantee stability for
+every stopped stance. Six new stop trials at 3/4/5 wall seconds of forward
+input, comparing deadman release with stick centering while deadman stayed
+held, reproduced elevated reported joint speed under **both** stop modes:
+`.build/stop-transients-20260913T133511.json`. A repeated four-second pair is
+`.build/stop-transients-20260913T133846.json`. No input, policy, gain, or safety
+behavior was modified for these tests.
+
+The status file updates only about once per second. Repeated reads must not
+be counted as high-rate independent observations. A new **subscriber-only**
+tool, `tools/analysis/record_sim_stop.py`, captures LowState and LowCmd on
+hard-coded `rt/socialnav_sim/g1/*` topics, domain 42, loopback. It cannot
+publish a command and is bounded to at most 600 wall seconds. The normal
+Isaac trace remains at 5 Hz. Output is created exclusively, not overwritten.
+
+`tools/analysis/analyze_sim_stop.py` detects the actual incoming stop packet,
+compares dq with position differences using the 200 Hz physics tick counter,
+and reports position-derived velocity and position range across all joints.
+Three synthetic/protocol tests pass. Recording callback queue drops were zero;
+analyzed LowState tick gaps were four (50 Hz in simulation time).
+
+Baseline DDS record `.build/stop-dds-baseline-20260913.jsonl` covers the last
+two stops of the six-case test plus the repeated four-second pair. Its
+10--20-wall-second max-joint-speed p95 values were 0.1281, 1.7463, 0.1842,
+and 1.7924 rad/s. In the final release case, right ankle roll dq mean was
+-1.4763 rad/s and RMS 1.5212, but position-derived RMS was only 0.03410 and
+position range 0.01694 rad. This is substantial residual numerical velocity
+bias, not a 1.5 rad/s physical ankle oscillation. There was also real movement:
+left shoulder roll position-derived RMS reached 0.2046 rad/s in that window.
+
+### Bounded 8/1 experiment
+
+Retained eight position iterations and per-iteration external forces; reduced
+velocity iterations to one via `.build/stop-velocity1.yml`, within the existing
+diagnostic bounds. No permanent default change was made for the experiment.
+NVIDIA notes that TGS generally needs very few (around one) velocity iterations:
+https://docs.omniverse.nvidia.com/kit/docs/omni_physics/108.1/dev_guide/simulation_control/simulation_control.html
+This supports an experiment, not a guarantee for this installed simulator.
+
+`.build/stop-transients-20260913T134227.json` completed all six stop cases in
+session `041aa283c3a8455d8be4b1cc032edef7`. The complete DDS record and metrics
+are `.build/stop-dds-velocity1-20260913.jsonl` and the corresponding
+`-metrics.json`. For the same 10--20 wall-second windows, max-joint-speed p95
+was 0.2775, 0.1756, 0.0841, 0.1173, 0.1327, and 0.1303 rad/s. The subsequent
+60-wall-second standing window passed all 120 observations:
+`.build/standing-window-20260913T134519.json`.
+
+This is a single-session comparison with differing initial stances, not a
+paired multi-seed proof that 8/1 is always better. Real residual motion remains:
+the first 8/1 stop had waist-roll position-derived RMS 0.1660 rad/s and range
+0.03341 rad, despite the much lower reported max dq. Therefore reduced
+velocity bias and passing settle gates must not be described as zero visible
+oscillation. Functional switching qualification for this candidate is tracked
+separately below; deadman still immediately clears locomotion intent.
+
+The joint-speed-only DDS convergence measure requires three continuous wall
+seconds with max absolute dq <=0.9 rad/s; gaps over 0.2 seconds reset the
+window. It is not the complete root/translation safety gate. All six 8/1
+cases completed that window 3.81--4.95 wall seconds after the received stop
+packet. Five synthetic/protocol tests now cover mode decoding, independent
+position-derived velocity, and both passing/failing convergence cases.
+
+The 8/1 candidate passed **10/10** video/Kimodo round trips, including turns
+in rounds 4 and 8, without changing session
+`041aa283c3a8455d8be4b1cc032edef7`:
+`.build/runtime-acceptance-20260913T134714/summary.json`. This is a separate
+qualification from the earlier 8/4 ten-round pass. It covers half-stick
+forward input and gentle turns, not all joystick inputs or physical hardware.
+
+Full-stick straight-walk follow-up stayed within the existing 0.45 m/s
+requested-speed cap; no cap or deadman semantics were changed:
+`.build/stop-transients-20260913T135816.json` and
+`.build/stop-dds-velocity1-full-20260913-metrics.json`. The four-second
+stick-center and deadman-release stops had 10--20-wall-second max-dq p95
+0.0739 and 0.1436 rad/s; position-derived RMS maxima were 0.01944 and
+0.08481 rad/s. Joint-speed-only three-second convergence completed at
+5.24 and 3.61 wall seconds respectively. The subsequent 60-wall-second
+standing test passed all 120 observations:
+`.build/standing-window-20260913T135920.json`.
+
+Full-stick stop transients are still nonzero: low-rate status samples in the
+first two seconds reached dq 4.63 rad/s and root tilt 0.1014 rad for centering,
+and dq 4.31 rad/s / tilt 0.0567 rad for deadman release. These include the
+initial braking motion and must not be called an oscillation amplitude or an
+instantaneous physical stop. The runtime stayed INTERACTIVE with no session
+replacement. Full-turn, reverse, lateral and physical-robot qualification are
+not established by these straight-walk tests.
+
+Safety-edge report `.build/runtime-edge-20260913T140050.json` passed L1,
+disconnect, and hard abort during video EXECUTING with 8/1. Abort recovered
+to supported READY in new session `e8951824f6154d21a311c80e161c634f` without
+automatic interactive rearm. The deployment task/profile default is now
+8/1 with per-iteration TGS external forces retained. Explicit velocity-iteration
+override 4 remains supported for reproducing the earlier configuration.
+No joystick, planner, policy, PD gains, velocity feedback filters, torque
+limits or safety thresholds were changed in this follow-up.
+
+Final base-Compose restart (without `.build/stop-velocity1.yml`) entered
+INTERACTIVE in session `251cc83b314243319f0791814ad6b7fe`; TGS readback was
+true, trace was 5 Hz, and no solver/TGS environment override was present.
+`.build/standing-window-20260913T140345.json` passed all 120 observations
+over 60 wall seconds. The task/profile defaults supply 8/1 directly.
+Twenty-eight related tests passed: 5 TGS helper, 4 solver defaults/bounds,
+2 handoff, 12 asset-profile, and 5 stop-analysis/protocol tests.
+Simulator checkpoint is `33c2cd5`. No SONIC image rebuild was necessary.
+
+Remaining work is reduced **physical** stop/idle motion and realtime speed,
+not merely lowering reported dq. The numerical improvement and finite test
+coverage above do not certify full-turn/reverse/lateral behavior or hardware.

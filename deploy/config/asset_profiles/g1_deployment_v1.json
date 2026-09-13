@@ -6,7 +6,7 @@
   "qualification": "qualified",
   "physics_dt_s": 0.005,
   "solver_position_iteration_count": 8,
-  "solver_velocity_iteration_count": 4,
+  "solver_velocity_iteration_count": 1,
   "allowed_extra_joints": [
     "L_index_proximal_joint",
     "L_index_intermediate_joint",
@@ -144,6 +144,6 @@
     "Qualification on 2026-08-21 passed fixed-root LowCmd response probes, free-root neutral, deterministic arm raise and shallow squat, plus wave, bow, and side-step closed-loop execution.",
     "Wave, bow, and side-step were repeated through the independent WebRTC visual-state path using this Custom USD task; all runs completed without fall, NaN, DDS loss, or safety abort.",
     "The original qualification used authored 4/1 solver iterations and exceeded the 0.8x playback realtime gate; this is historical evidence, not a timing claim for later settings.",
-    "The September 2026 persistent-runtime settling configuration uses 8/4 solver iterations and TGS external-force integration every iteration in run_motion_pipeline_sim.py. It reduces steady-state velocity bias without filtering LowState, altering SONIC gains, or relaxing safety gates. See docs/architecture/interactive-acceptance.md for measured limitations, including residual stop transients and sub-realtime performance."
+    "The September 2026 persistent-runtime settling configuration uses 8/1 solver iterations and TGS external-force integration every iteration in run_motion_pipeline_sim.py. An initial 8/4 candidate passed switching but later stop tests reproduced large stance-dependent velocity bias; 8/1 reduced that bias in the follow-up sample without filtering LowState, altering SONIC gains, or relaxing safety gates. See docs/architecture/interactive-acceptance.md for measured limitations, including residual physical motion and sub-realtime performance."
   ]
 }
