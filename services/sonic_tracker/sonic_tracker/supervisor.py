@@ -280,7 +280,11 @@ class SonicSupervisor:
             and self.runtime_mode == "JOYSTICK_LOCOMOTION"
             and self.interactive_session_id == session_id
         ):
-            return
+            try:
+                self._service_controller_output()
+                return
+            except RuntimeError as exc:
+                print(f"[sonic-supervisor] idle controller output failure: {exc}", flush=True)
 
         reasons = []
         if self.interactive_session_id != session_id:
@@ -1222,6 +1226,7 @@ class SonicSupervisor:
         )
         child_env = os.environ.copy()
         child_env.setdefault("SONIC_SIM_HISTORY_WARMUP_TICKS", "10")
+        self._controller_output_tail = ""
         self.child = pexpect.spawn(
             str(command_values[0]),
             [str(value) for value in command_values[1:]],
@@ -1370,6 +1375,7 @@ class SonicSupervisor:
     ) -> dict:
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
+            self._service_controller_output()
             status = self._read_isaac_status()
             if status.get("session_id") != session_id:
                 raise RuntimeError("Isaac session changed during runtime mode switch")
@@ -1381,6 +1387,29 @@ class SonicSupervisor:
                 )
             time.sleep(0.1)
         raise RuntimeError(f"timed out waiting for Isaac state={desired_state}")
+
+    def _service_controller_output(self) -> None:
+        """Drain PTY output when no controller acknowledgement is pending.
+
+        SONIC writes telemetry from the control loop. Leaving its PTY unread
+        during a physics-only wait can block that loop and stop LowCmd.
+        Execution and idle maintenance already have exclusive child ownership;
+        do not call this while waiting for a motion/mode acknowledgement.
+        """
+        if self.child is None:
+            return
+        deadline = time.monotonic() + 0.01
+        while time.monotonic() < deadline:
+            try:
+                chunk = self.child.read_nonblocking(size=4096, timeout=0)
+            except pexpect.TIMEOUT:
+                return
+            except pexpect.EOF as exc:
+                raise RuntimeError("SONIC exited during physics wait") from exc
+            text = getattr(self, "_controller_output_tail", "") + chunk
+            self._controller_output_tail = text[-256:]
+            if re.search(r"\[ERROR\]|\bNaN\b|Safety check failed|Lost LowState|fall", text):
+                raise RuntimeError("SONIC safety error during physics wait; see sonic_persistent.log")
 
     def _wait_for_stable_standing(
         self,
@@ -1399,6 +1428,7 @@ class SonicSupervisor:
         stable_since = None
         latest = None
         while time.monotonic() < deadline:
+            self._service_controller_output()
             latest = self._read_isaac_status()
             if latest.get("session_id") != session_id:
                 raise RuntimeError("Isaac session changed while stabilizing neutral stand")
