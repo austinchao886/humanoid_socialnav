@@ -91,3 +91,41 @@ Continuous switching qualification remains open until a complete ten-round
 run passes; automatic recovery is not a substitute for LowCmd/session
 continuity. Smooth abort-to-standing and Pico live-reference integration
 remain subsequent work.
+
+## Warm-return follow-up
+
+The simulator previously called `begin_control_handoff()` even for an
+unsupported same-session reference-to-planner return. This rearmed cold-start
+torque blending, target shaping, and bootstrap damping on an already-live
+controller. The warm path now retains authoritative control via
+`end_control_handoff()`; supported cold startup still uses the original
+handoff. Ground stability gates and watchdog thresholds are unchanged.
+Two lightweight cold/warm dispatch regression tests pass.
+
+Report `.build/runtime-acceptance-20260913T003253/summary.json`:
+
+- Video, Kimodo, video: three complete round trips passed in Isaac session
+  `1e618850849e4367b86ebaa60fdd9f2e` with no session restart.
+- Round 4, with normalized yaw input 0.15, failed during entry preemption,
+  before the Kimodo reference played: raw right-shoulder-pitch command error
+  reached 4.2323 rad and the existing safety gate stopped execution.
+- Controller logs confirm the indexed standby reference was correctly
+  `isaac-neutral-v1`. The fault occurred directly after planner disable and
+  reference/heading reset, not after selecting the requested Kimodo artifact.
+- This does not establish ten-round acceptance or safe turning preemption.
+  Next implementation should explicitly stop locomotion/turning under the
+  live planner, validate stable hold, and only then change reference ownership.
+  That intermediate phase needs to suppress fresh joystick movement intent
+  while retaining emergency-stop/deadman behavior. Do not mask the fault by
+  raising raw-command limits or clamping the reported error.
+
+The revised edge harness completed with exit code 0:
+`.build/runtime-edge-20260913T003752.json`. L1 release and TCP disconnect
+retained session `7801820577204666a65fc3ae21c2fb2f`; abort during video
+EXECUTING produced ABORTED then supported READY in new session
+`1e6d69e71a0d4628ba6e007fbfa9d715`. No automatic interactive rearm occurred.
+This supersedes the earlier pending edge-harness rerun note. It does **not**
+qualify stopping quality: the sampled horizontal speed five seconds after
+L1 release was approximately 0.25 m/s, so residual motion/oscillation still
+needs a time-window-based velocity and tilt criterion rather than checking
+only that state remains INTERACTIVE.
