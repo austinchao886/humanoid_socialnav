@@ -4,6 +4,7 @@ import signal
 import time
 
 import numpy as np
+import pytest
 
 from sonic_tracker.supervisor import (
     SonicSupervisor,
@@ -467,3 +468,27 @@ def test_pre_planner_gate_requires_quiet_ready_standing(tmp_path, monkeypatch):
     )
 
     assert status["state"] == "READY_STANDING"
+
+
+def test_planner_hold_requires_stationary_root(tmp_path, monkeypatch):
+    supervisor = SonicSupervisor(tmp_path, tmp_path, object())
+    state = dict(session_id="session", state="PREEMPT_SUPPORTED",
+                 root_height_m=.78, root_tilt_rad=.02,
+                 max_joint_velocity_rad_s=.2,
+                 root_linear_velocity_m_s=[.3, 0, 0],
+                 root_angular_velocity_rad_s=[0, 0, 0])
+    monkeypatch.setattr(supervisor, "_read_isaac_status", lambda: state)
+    for linear, angular in [([.3, 0, 0], [0, 0, 0]),
+                            ([0, 0, 0], [0, 0, .4]),
+                            (None, None)]:
+        state.update(root_linear_velocity_m_s=linear,
+                     root_angular_velocity_rad_s=angular)
+        with pytest.raises(RuntimeError, match="stationary=True"):
+            supervisor._wait_for_stable_standing(
+                "session", stable_duration=0, timeout=.02,
+                accepted_states={"PREEMPT_SUPPORTED"}, require_stationary=True)
+    state.update(root_linear_velocity_m_s=[.03, .02, 0],
+                 root_angular_velocity_rad_s=[0, 0, .02])
+    assert supervisor._wait_for_stable_standing(
+        "session", stable_duration=0, timeout=1,
+        accepted_states={"PREEMPT_SUPPORTED"}, require_stationary=True) == state

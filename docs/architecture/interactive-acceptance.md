@@ -129,3 +129,48 @@ qualify stopping quality: the sampled horizontal speed five seconds after
 L1 release was approximately 0.25 m/s, so residual motion/oscillation still
 needs a time-window-based velocity and tilt criterion rather than checking
 only that state remains INTERACTIVE.
+
+## Planner-held preemption follow-up
+
+Native source `9084730` adds a supervisor-owned hold before planner disable.
+The sequence is now:
+
+1. Publish runtime request `PLANNER_HOLD`; signal the gamepad planner to hold.
+2. Keep nominal unsupported planner control and the current facing anchor.
+   Ignore movement, heading reset, play and mode-toggle inputs during hold;
+   retain emergency controls. The planner is not disabled on deadman release.
+3. Require three continuous seconds of the existing neutral height/tilt/joint
+   speed gate, additionally with horizontal root speed <=0.15 m/s and absolute
+   yaw rate <=0.20 rad/s. Missing velocity data does not pass. Timeout is 60s.
+4. Only then reacquire reference support, disable planner to indexed neutral,
+   qualify neutral, and switch to keyboard/reference control without another
+   reset. Normal completion uses the already-corrected warm planner return.
+
+Isaac remains INTERACTIVE during the unsupported hold; the runtime request
+state identifies that joystick input is temporarily suppressed. The test
+harness requires both request and simulator state to return to INTERACTIVE,
+so a held planner is not mistaken for a completed round trip.
+
+The native yaw integrator incorrectly used 0.02s despite `G1Deploy::Input`
+running at 100Hz (0.01s). Corrected that timestep, preventing approximately
+double heading accumulation. This corrects the input-loop computation, not
+wall-time versus simulated-time realtime-factor differences.
+
+Validation: three compiled native tests and 23 supervisor tests passed.
+
+- The initial support-before-hold experiment did not settle and was aborted.
+- Unsupported hold before correcting yaw also timed out; joint speeds stayed
+  above the unchanged 0.9 rad/s threshold.
+- Final corrected-yaw test passed a turning -> video -> joystick round trip
+  in session `4345cc20e6914815b2f703992d213d0e`:
+  `.build/planner-hold-corrected-yaw-video.log`.
+- Subsequent ten-round attempt `.build/runtime-acceptance-20260913T005752/`
+  passed video round 1, but Kimodo round 2 failed **before playback** when
+  planner hold did not converge. Final sampled joint speed was 1.706 rad/s,
+  root horizontal speed about 0.0065 m/s and tilt 0.040 rad. The safety/recovery
+  path replaced the session; this is not continuous-switching acceptance.
+
+Remaining blocker: reproducible planner idle joint settling, not just root
+translation/rotation. Single turning success is insufficient to claim the
+shoulder discontinuity is eliminated or that ten-round qualification passed.
+No neutral/admission/watchdog/position-error thresholds were relaxed.

@@ -642,10 +642,28 @@ class SonicSupervisor:
                     f"SONIC did not preload approved motion: {command.motion_id}"
                 )
             if planner_enabled and self.runtime_mode == "JOYSTICK_LOCOMOTION":
-                # Persistent Isaac is unsupported while joystick locomotion is
-                # active.  Every approved offline artifact in this contract
-                # requires the bootstrap band during frame-zero settling, so
-                # reacquire it before changing the policy's reference source.
+                # Stop under the nominal unsupported planner first. Applying
+                # the reference support band during locomotion perturbs its
+                # balance and can prevent the stationary gate converging.
+                runtime_request["state"] = "PLANNER_HOLD"
+                self._write_runtime_request(runtime_request)
+                # First stop locomotion under the existing planner. Changing
+                # to a static reference while still turning produces a large
+                # observation/target discontinuity even with vertical support.
+                self._signal_runtime_mode(signal.SIGUSR1)
+                self._expect_or_abort(
+                    [r"\[InterfaceManager\] Runtime mode: PLANNER_HOLD"],
+                    timeout=5,
+                )
+                self._wait_for_stable_standing(
+                    isaac_ready["session_id"],
+                    stable_duration=3.0,
+                    timeout=60.0,
+                    accepted_states={"INTERACTIVE"},
+                    require_stationary=True,
+                )
+                # Offline frame-zero settling still requires its support band,
+                # but reacquire it only after the planner has stopped moving.
                 runtime_request["state"] = "REFERENCE_PREEMPT"
                 runtime_request["preempt_epoch_s"] = time.time()
                 self._write_runtime_request(runtime_request)
@@ -655,7 +673,7 @@ class SonicSupervisor:
                     "PREEMPT_SUPPORTED",
                     timeout=30.0,
                 )
-                # Phase 1 stays on the gamepad delegate but forces the normal
+                # Next stay on the gamepad delegate but force the normal
                 # deadman-release path into its indexed neutral reference.
                 self._signal_runtime_mode(signal.SIGUSR1)
                 self._expect_or_abort(
@@ -1428,6 +1446,7 @@ class SonicSupervisor:
         stable_duration: float,
         timeout: float,
         accepted_states: set[str] | None = None,
+        require_stationary: bool = False,
     ) -> dict:
         if accepted_states is None:
             accepted_states = {"READY_STANDING"}
@@ -1459,6 +1478,14 @@ class SonicSupervisor:
                     and root_tilt <= 0.10
                     and max_dq <= max_joint_velocity
                 )
+                if require_stationary:
+                    try:
+                        velocity = latest["root_linear_velocity_m_s"]
+                        yaw_rate = float(latest["root_angular_velocity_rad_s"][2])
+                        planar_speed = (float(velocity[0]) ** 2 + float(velocity[1]) ** 2) ** 0.5
+                        quiet = quiet and planar_speed <= 0.15 and abs(yaw_rate) <= 0.20
+                    except (KeyError, TypeError, ValueError, IndexError):
+                        quiet = False
             if quiet:
                 if stable_since is None:
                     stable_since = time.monotonic()
@@ -1470,6 +1497,7 @@ class SonicSupervisor:
         raise RuntimeError(
             "neutral reference did not reach stable standing before planner takeover; "
             f"required quiet={stable_duration}s, max_dq<={max_joint_velocity}; "
+            f"stationary={require_stationary}; "
             f"latest={latest}"
         )
 

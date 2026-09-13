@@ -56,13 +56,13 @@ with socket.create_connection(('127.0.0.1',16042), timeout=5) as connection:
             if key != last:
                 record('transition_request_'+str(req),d)
                 last = key
-            departed |= d['state'] != 'INTERACTIVE'
+            departed |= d['state'] != 'INTERACTIVE' or req == 'PLANNER_HOLD'
             if not departed and time.monotonic() > admission_deadline:
                 raise TimeoutError('approval not admitted within 5s; release joystick')
             if time.monotonic() >= next_sample:
                 record('telemetry', d)
                 next_sample = time.monotonic() + 1
-            if departed and d['state'] == 'INTERACTIVE':
+            if departed and d['state'] == 'INTERACTIVE' and req == 'INTERACTIVE':
                 record('returned_to_interactive',d)
                 break
             # Keep walking input through approval admission; release once
