@@ -9,6 +9,15 @@ from sonic_tracker.supervisor import SonicSupervisor
 
 
 class ControllerOutputTests(unittest.TestCase):
+    def test_explicit_abort_does_not_auto_rearm(self):
+        with tempfile.TemporaryDirectory() as directory:
+            supervisor = SonicSupervisor(Path(directory), Path(directory), object())
+            supervisor.abort_event.set()
+            with patch.object(supervisor, '_interactive_runtime_requested', return_value=True), \
+                 patch.object(supervisor, '_require_isaac_ready') as ready:
+                supervisor._maintain_interactive_runtime()
+                ready.assert_not_called()
+
     def test_standing_wait_keeps_verbose_controller_running(self):
         # A real PTY writer cannot reach its heartbeat until >1 MB of control
         # telemetry has been consumed. Simulate the physics gate waiting on it.

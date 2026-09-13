@@ -254,6 +254,11 @@ class SonicSupervisor:
 
         if not self._interactive_runtime_requested():
             return
+        # An explicit abort stays latched until an operator starts a new
+        # execution (or restarts the supervisor). Do not repeatedly bootstrap
+        # a controller that _expect_or_abort will immediately cancel.
+        if self.abort_event.is_set():
+            return
         with self.lock:
             execution_active = bool(
                 self.active_command is not None
@@ -391,6 +396,11 @@ class SonicSupervisor:
             )
         except Exception as exc:
             if not self.abort_event.is_set():
+                print(
+                    f"[sonic-supervisor] execution failed request={command.request_id} "
+                    f"motion={command.motion_id}: {exc}",
+                    flush=True,
+                )
                 self.dds.publish(
                     STATUS_TOPIC,
                     status_json(
@@ -1458,7 +1468,9 @@ class SonicSupervisor:
                 stable_since = None
             time.sleep(0.1)
         raise RuntimeError(
-            "neutral reference did not reach stable standing before planner takeover"
+            "neutral reference did not reach stable standing before planner takeover; "
+            f"required quiet={stable_duration}s, max_dq<={max_joint_velocity}; "
+            f"latest={latest}"
         )
 
     def _prepare_persistent_reference_pool(self, required_motion_id: str) -> Path:
