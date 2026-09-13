@@ -174,3 +174,128 @@ Remaining blocker: reproducible planner idle joint settling, not just root
 translation/rotation. Single turning success is insufficient to claim the
 shoulder discontinuity is eliminated or that ten-round qualification passed.
 No neutral/admission/watchdog/position-error thresholds were relaxed.
+
+## TGS joint-settling investigation (2026-09-13)
+
+At 200 Hz, some ankle joints report a persistent velocity despite almost
+constant position. Treat this separately from actual oscillation: FFT power
+above 50 Hz alone is not proof of appreciable physical motion, and removing
+the velocity mean from a plot would hide the bias entering the policy.
+
+PhysX documents a TGS steady-state position/velocity discrepancy when external
+forces are integrated once per frame but constraints are integrated per
+substep. The per-iteration external-force flag mitigates, but does not promise
+to eliminate, this discrepancy for articulations:
+https://nvidia-omniverse.github.io/PhysX/physx/5.7.0/docs/Simulation.html#tgs-steady-state-velocity-and-position-discrepancy
+
+The installed Isaac 4.5 PhysxSchema exposes
+`CreateEnableExternalForcesEveryIterationAttr`; the installed Isaac Lab config
+does not expose a corresponding field. The runner now authors the scene flag
+before `gym.make`, reads it back afterward, and fails if it was not retained.
+`SONIC_TGS_FORCES_EVERY_ITERATION` selects it. Reports now record the actual
+requested task solver iterations rather than copying the profile constants.
+Three mocked scene-authoring tests and two warm-handoff tests pass.
+
+Bounded idle/walk-stop/turn-stop trials compared 4/1, 4/4, 8/4 iterations,
+and the per-iteration external-force flag. The combined 8/4 + flag candidate
+gave the most consistently low stopped velocity in these trials. No PD gains,
+torque limits, deadman behavior, support forces during interactive standing,
+or safety gates were changed. No reported joint velocity is filtered.
+
+For each stopped phase, the table uses the final five **simulation** seconds
+(1001 trace samples), not a single endpoint. Values are the 95th percentile
+of the instantaneous maximum absolute joint velocity, in rad/s:
+
+| Phase | Baseline 4/1, flag off | Candidate 8/4, flag on |
+| --- | ---: | ---: |
+| Idle | 0.3242 | 0.1245 |
+| After forward motion / L1 release | 0.6491 | 0.1264 |
+| After gentle turn / L1 release | 0.5804 | 0.1266 |
+
+Reports: `.build/oscillation-baseline-metrics.json` and
+`.build/oscillation-tgs8-metrics.json`. These are separate session trials, not
+a statistical multi-seed qualification. Some residual velocity bias remains:
+candidate idle right ankle pitch mean velocity is 0.1190 rad/s while the
+position-derived velocity RMS is 0.00269 rad/s. After turning, waist-roll
+position range is 0.0112 rad over the final five seconds. Therefore this is
+reduced settling disturbance, not proof of zero joint oscillation.
+
+`tools/acceptance/oscillation_trial.py` records bounded phase markers and
+releases deadman in cleanup. `standing_window_acceptance.py` is a read-only
+2 Hz window check using existing hold bounds and requiring unsupported,
+same-session, joystick-owned INTERACTIVE throughout. It does not replace
+the 200 Hz runtime safety monitor.
+
+### Same-session switching result
+
+`.build/runtime-acceptance-20260913T124710/summary.json` passed **10/10**
+alternating video/Kimodo round trips with the 8/4 + per-iteration-force
+candidate and 200 Hz trace. All ten used Isaac session
+`c10585e2a6674d3d88c8aa582280b927`; rounds 4 and 8 included normalized yaw
+0.15 before approval. Every round completed playback, returned to joystick,
+and could walk again, without replacing the session. This supersedes the
+earlier failed ten-round attempts for this candidate configuration only.
+
+This is **not** ten-round smooth-stop acceptance: after four wall seconds of
+deadman release, rounds 3 and 8 sampled maximum joint speed 0.970 and 1.784
+rad/s respectively. Round 8 root tilt was 0.0599 rad. Other stopped endpoints
+ranged 0.115--0.333 rad/s. The functional harness checks state/session, not
+that all stop transients have vanished. It now records simulation time and
+trace path to correlate future transients with the high-rate joint signals.
+
+With high-frequency trace, startup release realtime factor was approximately
+0.642 for baseline and 0.534 for the candidate, in separate runs. This suggests
+a compute cost; neither value is a full-session timing benchmark. Normal
+5 Hz trace must be checked separately. Existing traces are retained, not
+deleted when the diagnostic frequency is reduced.
+
+The 5 Hz trace rerun `.build/oscillation-tgs8-normal5-metrics.json` retained
+low settled speeds: final-five-simulation-second max-joint-speed p95 was
+0.0915 rad/s idle, 0.2132 after forward/L1 release, and 0.1876 after gentle
+turn/L1 release. These windows contain only 25 samples; do not use their FFT
+output to infer high-frequency vibration. Startup release realtime factor was
+still about 0.531, so reducing trace logging did not restore realtime speed.
+
+`.build/standing-window-20260913T130051.json` passed all 600 observations
+over 300 wall seconds (185.3 simulated seconds) in session
+`dda508bdf46e4ddbab08124967afd477`, with 5 Hz trace. Entire-window maxima:
+joint speed 0.1897 rad/s, root tilt 0.03202 rad, planar speed 0.000792 m/s,
+and yaw rate 0.003344 rad/s. Both support scales stayed zero and request/state
+remained INTERACTIVE. This validates settled standing, not every L1 transient.
+
+The deployment task and asset-profile defaults now agree on 8/4. The runner
+enables per-iteration TGS external forces by default only for
+`g1_deployment_v1`; other profiles keep their previous default. Explicit
+`SONIC_TGS_FORCES_EVERY_ITERATION=0` permits A/B, and values other than 0/1
+fail validation. Five TGS helper tests, three solver default/bounds tests,
+and two cold/warm handoff tests pass. No SONIC native/policy changes are part
+of this physics correction; the runner/task/profile are read from the mounted
+workspace, so a SONIC image rebuild is not needed for these changes.
+
+Safety-edge report `.build/runtime-edge-20260913T130642.json` passed L1
+release, TCP disconnect, and hard abort during video EXECUTING. Abort
+recovered to supported READY in session `3212b39d9e144e10a94c369ed4eb6978`,
+without automatic interactive rearm. These are functional safety-edge tests,
+not certification of smooth stopping or smooth abort-to-standing.
+
+### Base Compose verification and version checkpoint
+
+After restoring SSH, launched **only** `docker-compose.motion.yml` (no
+diagnostic override) and explicitly restarted SONIC after the deliberate abort.
+The new runner retained the TGS flag from its deployment-profile default;
+trace environment is 5 Hz with no solver/TGS override variables. Asset-profile
+tests passed 12/12; simulator helper/default/handoff tests passed 10/10.
+
+`.build/tgs-defaults-video-smoke-20260913.log` passed gentle-turn -> video ->
+joystick, including walking again, in session
+`c3d4c15719174cf497d33c6af3eaad2f`. The subsequent
+`.build/standing-window-20260913T132622.json` passed all 120 observations
+over 60 wall seconds (37.0 simulated seconds). Max joint speed was 0.2010
+rad/s, tilt 0.02218 rad, planar speed 0.00720 m/s, yaw rate 0.11697 rad/s.
+No support or session replacement occurred during the test. This final
+short window does not replace the earlier five-minute qualification.
+
+Simulator checkpoint: `37d9bb0` in unitree_sim_isaaclab. The functional
+switching/settled-standing improvement is ready for simulation use; sporadic
+L1 stop transients, realtime performance, smooth abort-to-standing and Pico
+live-reference integration remain open. No hardware qualification is implied.

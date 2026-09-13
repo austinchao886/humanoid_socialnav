@@ -25,7 +25,7 @@ turn = float(os.environ.get('ACCEPTANCE_TURN', '0'))
 sequence = 0
 events = []
 def record(label, d):
-    row = {'event': label, 'epoch_s':time.time(), **{k:d.get(k) for k in ('state','session_id','root_height_m','root_tilt_rad','max_joint_velocity_rad_s','root_linear_velocity_m_s','reason')}}
+    row = {'event': label, 'epoch_s':time.time(), **{k:d.get(k) for k in ('state','session_id','simulation_time_s','trace_path','root_height_m','root_tilt_rad','max_joint_velocity_rad_s','root_linear_velocity_m_s','root_angular_velocity_rad_s','reason')}}
     events.append(row)
     print(json.dumps(row), flush=True)
 

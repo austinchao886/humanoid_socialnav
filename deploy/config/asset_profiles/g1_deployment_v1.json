@@ -5,8 +5,8 @@
   "source_asset": "unitree_sim_isaaclab/assets/robots/g1-29dof_wholebody_deployment-v1/g1_29dof_with_inspire_rev_1_0.usd",
   "qualification": "qualified",
   "physics_dt_s": 0.005,
-  "solver_position_iteration_count": 4,
-  "solver_velocity_iteration_count": 1,
+  "solver_position_iteration_count": 8,
+  "solver_velocity_iteration_count": 4,
   "allowed_extra_joints": [
     "L_index_proximal_joint",
     "L_index_intermediate_joint",
@@ -143,6 +143,7 @@
     "The two Inspire hand-base masses are compensated so each wrist-and-hand branch matches the official terminal wrist mass while preserving the custom hand geometry and articulation.",
     "Qualification on 2026-08-21 passed fixed-root LowCmd response probes, free-root neutral, deterministic arm raise and shallow squat, plus wave, bow, and side-step closed-loop execution.",
     "Wave, bow, and side-step were repeated through the independent WebRTC visual-state path using this Custom USD task; all runs completed without fall, NaN, DDS loss, or safety abort.",
-    "The Custom Inspire articulation uses its authored 4/1 position/velocity solver iterations; free-root neutral, wave, bow, and side-step remained stable and exceeded the 0.8x playback realtime gate."
+    "The original qualification used authored 4/1 solver iterations and exceeded the 0.8x playback realtime gate; this is historical evidence, not a timing claim for later settings.",
+    "The September 2026 persistent-runtime settling configuration uses 8/4 solver iterations and TGS external-force integration every iteration in run_motion_pipeline_sim.py. It reduces steady-state velocity bias without filtering LowState, altering SONIC gains, or relaxing safety gates. See docs/architecture/interactive-acceptance.md for measured limitations, including residual stop transients and sub-realtime performance."
   ]
 }
