@@ -319,6 +319,10 @@ def test_interactive_runtime_maintenance_leaves_matching_session_alone(
         def isalive(self):
             return True
 
+        def read_nonblocking(self, **kwargs):
+            import pexpect
+            raise pexpect.TIMEOUT("no pending telemetry")
+
     supervisor.child = FakeChild()
     supervisor.runtime_mode = "JOYSTICK_LOCOMOTION"
     supervisor.interactive_session_id = "same-session"
