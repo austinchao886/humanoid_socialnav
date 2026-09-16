@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "plans": [
+    {
+      "motion_id": "wave-official-e2e-005-083aa901",
+      "plan_id": "887e06bae6c25cc87ce8bb2e284a98ec158090deb656da8d6fa9f6452b6c2709",
+      "amplitude": 0.25,
+      "time_scale": 2.0,
+      "start_offset_s": 2.0,
+      "end_offset_s": 19.96,
+      "entry_s": 1.0,
+      "exit_s": 1.0
+    }
+  ]
+}

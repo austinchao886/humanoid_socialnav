@@ -1,0 +1,15 @@
+**
+!pyproject.toml
+!motion_pipeline/
+!motion_pipeline/**
+!packages/
+!packages/**
+!services/
+!services/**
+!vendor/
+!vendor/GR00T-WholeBodyControl/
+!vendor/GR00T-WholeBodyControl/gear_sonic_deploy/
+!vendor/GR00T-WholeBodyControl/gear_sonic_deploy/src/
+!vendor/GR00T-WholeBodyControl/gear_sonic_deploy/src/**
+**/__pycache__/
+**/*.pyc

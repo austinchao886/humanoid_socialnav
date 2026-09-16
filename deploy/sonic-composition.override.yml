@@ -1,0 +1,16 @@
+# Simulation acceptance only; combine AFTER docker-compose.motion.yml.
+# Candidate is not qualified for hardware or arbitrary reference composition.
+services:
+  sonic-tracker:
+    image: social-motion/sonic:composition-candidate-20260915-08
+    environment:
+      SONIC_ENABLE_GESTURE_COMPOSITION: "1"
+      SONIC_GESTURE_GAIT_ENVELOPE: "1"
+      SONIC_PLANNER_SEAM_DIAGNOSTICS: "1"
+      SONIC_PREPARED_PLAN_CATALOG: /etc/sonic/prepared-wave.json
+    volumes:
+      - ./deploy/sonic-prepared-wave.json:/etc/sonic/prepared-wave.json:ro
+  isaac-runner:
+    environment:
+      ISAAC_RUNNER_FOOT_CONTACT_TRACE: "1"
+      ISAAC_RUNNER_TRACE_HZ: "200"
