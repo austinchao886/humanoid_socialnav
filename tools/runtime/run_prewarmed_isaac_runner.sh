@@ -13,6 +13,11 @@ restart_delay_s="${ISAAC_RUNNER_RESTART_DELAY_S:-1}"
 runtime_mode="${ISAAC_RUNNER_MODE:-persistent}"
 visual_state_output="${ISAAC_RUNNER_VISUAL_STATE_OUTPUT:-$workspace/motion_exchange/.runtime/g1_visual_state.bin}"
 execution_dir="$workspace/motion_exchange/executions"
+case "${ISAAC_RUNNER_FOOT_CONTACT_TRACE:-0}" in
+  0) diagnostic_args=() ;;
+  1) diagnostic_args=(--foot-contact-trace) ;;
+  *) echo "invalid ISAAC_RUNNER_FOOT_CONTACT_TRACE (expected 0 or 1)" >&2; exit 2 ;;
+esac
 
 case "$runtime_mode" in
   persistent)
@@ -45,6 +50,7 @@ while true; do
     --asset-profile "$asset_profile" \
     --headless \
     "${lifecycle_args[@]}" \
+    "${diagnostic_args[@]}" \
     --sonic-command-timeout "$command_timeout_s" \
     --standing-command-timeout "$standing_command_timeout_s" \
     --trace-hz "$trace_hz" \
