@@ -12,10 +12,15 @@ import signal
 import tempfile
 import threading
 import time
+import uuid
 from datetime import datetime
 from pathlib import Path
 
 import pexpect
+from sonic_tracker.gesture_transport import spawn_with_gesture_channel
+from sonic_tracker.prepared_plan_store import PreparedPlanStore
+from sonic_tracker.gesture_sender import GestureSender
+from sonic_tracker.gesture_safety import require_composition_envelope
 
 from motion_contracts.protocol import CONTROL_TOPIC, STATUS_TOPIC, ControlCommand, ProtocolError, State, status_json
 from motion_contracts.validator import validate_artifact
@@ -146,6 +151,8 @@ class SonicSupervisor:
         self.child: pexpect.spawn | None = None
         self.execution_thread: threading.Thread | None = None
         self.abort_event = threading.Event()
+        self.gesture_cancel_event = threading.Event()
+        self.active_gesture_token = None
         self.active_command: ControlCommand | None = None
         self.lock = threading.Lock()
         self.runtime_dir = self.exchange / ".runtime"
@@ -169,8 +176,119 @@ class SonicSupervisor:
         self.control_started = False
         self.runtime_mode = "STOPPED"
         self.interactive_session_id: str | None = None
+        self.gesture_channel = None
+        self.gesture_sender = None
+        self.prepared_plans = PreparedPlanStore(self.exchange)
         self.next_interactive_recovery_monotonic = 0.0
         self.child_log_handle = None
+
+    def prepare_gesture_plan(self, motion_id: str, **parameters):
+        """Prepare outside execution; does not grant approval or change runtime."""
+        artifact = (self.exchange / motion_id).resolve()
+        if artifact.parent != self.exchange or artifact.name != motion_id or not artifact.is_dir():
+            raise ProtocolError("unknown motion_id for preparation")
+        # Store captures source bytes around parsing; full artifact validation
+        # is followed by a fresh identity lookup to catch ordinary mutations.
+        entry = self.prepared_plans.prepare(motion_id, **parameters)
+        try:
+            result = validate_artifact(artifact, write_result=False)
+            if not result.valid:
+                raise ProtocolError("artifact failed prepared-plan validation")
+            # This locally constructed identity check is NOT execution approval.
+            identity = ControlCommand(entry.request_id, entry.motion_id, "approve_execute",
+                                      prepared_plan_id=entry.plan.plan_id)
+            self.prepared_plans.resolve(identity,
+                required_reference_contract=self.required_reference_contract)
+        except Exception:
+            self.prepared_plans.discard(entry.plan.plan_id)
+            raise
+        return entry
+
+    def _resolve_prepared_approval(self, command: ControlCommand):
+        """Exact cached reference plus current full artifact gate; no runtime IO."""
+        plan = self.prepared_plans.resolve(command,
+            required_reference_contract=self.required_reference_contract)
+        result = validate_artifact(self.exchange / command.motion_id, write_result=False)
+        if not result.valid:
+            raise ProtocolError("artifact failed validation at prepared execution gate")
+        confirmed = self.prepared_plans.resolve(command,
+            required_reference_contract=self.required_reference_contract)
+        if confirmed is not plan:
+            raise ProtocolError("prepared plan changed during execution validation")
+        return plan, result
+
+    def _require_gesture_session(self, session_id: str) -> dict:
+        if (not self.persistent_process or not self.control_started
+                or self.runtime_mode != "JOYSTICK_LOCOMOTION"
+                or self.interactive_session_id != session_id
+                or self.child is None or not self.child.isalive()
+                or self.gesture_channel is None):
+            raise RuntimeError("gesture requires an active persistent planner session")
+        status = self._require_isaac_ready()
+        if status.get("session_id") != session_id or status.get("state") != "INTERACTIVE":
+            raise RuntimeError("gesture Isaac session/state changed")
+        # Composition must never borrow bootstrap support or a partial handoff.
+        for name, expected in (("elastic_support_scale", 0.),
+                               ("elastic_support_attitude_scale", 0.),
+                               ("control_handoff_progress", 1.)):
+            value = status.get(name)
+            if type(value) not in (int, float) or not math.isfinite(value) or value != expected:
+                raise RuntimeError(f"gesture requires unsupported control: {name}")
+        require_composition_envelope(status, now_epoch_s=time.time(),
+            gait_window=os.getenv("SONIC_GESTURE_GAIT_ENVELOPE", "0")=="1")
+        return status
+
+    def _stream_prepared_gesture(self, command: ControlCommand, *, timeout_s: float, on_started=None) -> dict:
+        """Stream under Supervisor ownership without a native mode switch."""
+        if not math.isfinite(timeout_s) or timeout_s <= 0:
+            raise ProtocolError("invalid gesture completion timeout")
+        plan, _ = self._resolve_prepared_approval(command)
+        session_id = self.interactive_session_id
+        self._require_gesture_session(session_id)
+        if self.abort_event.is_set():
+            raise RuntimeError("execution aborted")
+        if self.gesture_sender is None:
+            self.gesture_sender = GestureSender(self.gesture_channel, session_id)
+        sender = self.gesture_sender
+        if sender.channel is not self.gesture_channel or sender.session_id != session_id:
+            raise RuntimeError("gesture sender belongs to a different session")
+        started = time.monotonic()
+        updates = 0
+        cancelled = False
+        cancel_deadline = None
+        try:
+            sender.begin(plan, approved_plan_id=command.prepared_plan_id)
+            while True:
+                iteration = time.monotonic()
+                if iteration - started > timeout_s:
+                    raise RuntimeError("gesture completion timed out")
+                if self.abort_event.is_set():
+                    raise RuntimeError("execution aborted")
+                self._service_controller_output()
+                self._require_gesture_session(session_id)
+                if self.gesture_cancel_event.is_set():
+                    if cancel_deadline is None:
+                        cancel_deadline = iteration + 5.0
+                    if iteration > cancel_deadline:
+                        raise RuntimeError("gesture cancellation timed out")
+                    cancelled = True
+                    completed = sender.update(cancel=True)
+                else:
+                    completed = sender.update()
+                updates += 1
+                if updates == 1 and on_started is not None:
+                    on_started(dict(origin_sim_tick=sender.tick, execution_id=sender.execution_id))
+                if completed:
+                    self._require_gesture_session(session_id)
+                    return dict(session_id=session_id, plan_id=plan.plan_id,
+                                updates=updates, cancelled=cancelled,
+                                wall_duration_s=time.monotonic()-started)
+                self.abort_event.wait(max(0., .02-(time.monotonic()-iteration)))
+        except Exception:
+            # Once grant may have been sent, preserve the existing safety stop
+            # policy; never silently retry a failed stream in another session.
+            self._stop()
+            raise
 
     def _interactive_runtime_requested(self) -> bool:
         return bool(
@@ -181,7 +299,47 @@ class SonicSupervisor:
             not in {"0", "false", "False"}
         )
 
+    def _load_prepared_catalog(self, path: Path) -> list[dict]:
+        """Startup-only preparation, atomic on failure; never grants execution."""
+        if self.child is not None or self.execution_thread is not None:
+            raise ProtocolError("prepared catalog must load before runtime startup")
+        raw = path.read_bytes()
+        if len(raw) > 65536:
+            raise ProtocolError("prepared catalog too large")
+        catalog = json.loads(raw)
+        if (not isinstance(catalog, dict) or set(catalog) != {"schema_version", "plans"}
+                or type(catalog["schema_version"]) is not int or catalog["schema_version"] != 1
+                or not isinstance(catalog["plans"], list) or len(catalog["plans"]) > 16):
+            raise ProtocolError("invalid prepared catalog")
+        old_store = self.prepared_plans
+        self.prepared_plans = PreparedPlanStore(self.exchange)
+        summaries = []
+        seen = set()
+        parameters = {"amplitude", "time_scale", "start_offset_s", "end_offset_s", "entry_s", "exit_s"}
+        try:
+            for recipe in catalog["plans"]:
+                if (not isinstance(recipe, dict) or set(recipe) != parameters | {"motion_id", "plan_id"}
+                        or not isinstance(recipe["motion_id"], str)
+                        or any(type(recipe[k]) not in (int, float) for k in parameters)):
+                    raise ProtocolError("invalid prepared recipe")
+                entry = self.prepare_gesture_plan(recipe["motion_id"],
+                    **{key: recipe[key] for key in parameters})
+                if entry.plan.plan_id != recipe["plan_id"] or entry.plan.plan_id in seen:
+                    raise ProtocolError("prepared recipe hash mismatch or duplicate")
+                seen.add(entry.plan.plan_id)
+                summaries.append(dict(request_id=entry.request_id, motion_id=entry.motion_id,
+                    prepared_plan_id=entry.plan.plan_id, duration_s=entry.plan.duration_s,
+                    approved=False, dynamic_qualification=False))
+        except Exception:
+            self.prepared_plans = old_store
+            raise
+        return summaries
+
     def run(self) -> None:
+        # Discovery must not interrupt the first reference streaming callback.
+        self.dds.prepare_publisher(STATUS_TOPIC)
+        catalog_path = os.getenv("SONIC_PREPARED_PLAN_CATALOG")
+        prepared = self._load_prepared_catalog(Path(catalog_path)) if catalog_path else []
         def receive(raw: str) -> None:
             request_id, motion_id = _ids(raw)
             print(
@@ -200,6 +358,7 @@ class SonicSupervisor:
             "asset_profile": self.required_asset_profile,
             "isaac_task": self.required_isaac_task,
             "reference_contract": self.required_reference_contract,
+            "prepared_plans": prepared,
             "updated_epoch_s": time.time(),
         }
         status_path = self.runtime_dir / "sonic_supervisor_status.json"
@@ -338,6 +497,19 @@ class SonicSupervisor:
             )
         elif command.action == "reject":
             self.dds.publish(STATUS_TOPIC, status_json(command.request_id, State.REJECTED, motion_id=command.motion_id))
+        elif command.action == "cancel":
+            # Graceful reference cancellation is separate from emergency abort.
+            # A per-execution UUID rejects late/replayed requests even when a
+            # library action is approved again with the same request/motion IDs.
+            with self.lock:
+                active = self.active_command
+                if (active is None or active.prepared_plan_id is None
+                        or command.request_id != active.request_id
+                        or command.motion_id != active.motion_id
+                        or not self.active_gesture_token
+                        or command.execution_token != self.active_gesture_token):
+                    raise ProtocolError("cancel does not match an active prepared execution")
+                self.gesture_cancel_event.set()
         elif command.action in {"abort", "reset"}:
             with self.lock:
                 active = self.active_command
@@ -371,6 +543,8 @@ class SonicSupervisor:
             if self.execution_thread is not None and self.execution_thread.is_alive():
                 raise ProtocolError("a motion is already executing")
             self.abort_event.clear()
+            self.gesture_cancel_event.clear()
+            self.active_gesture_token = None
             self.active_command = command
             self.execution_thread = threading.Thread(
                 target=self._execute_guarded,
@@ -432,6 +606,62 @@ class SonicSupervisor:
                 self._stop()
             with self.lock:
                 self.active_command = None
+                self.active_gesture_token = None
+
+    def _execute_prepared(self, command, *, approval_received_monotonic,
+                          approval_received_at, queue_wait_s):
+        # Idempotent defense for callers that bypass run(); never warm after grant.
+        self.dds.prepare_publisher(STATUS_TOPIC)
+        plan, validation = self._resolve_prepared_approval(command)
+        initial = self._require_gesture_session(self.interactive_session_id)
+        report_dir = self.exchange / "executions"
+        report_dir.mkdir(exist_ok=True)
+        execution_token = uuid.uuid4().hex
+        report_path = report_dir / f"gesture-{execution_token}.json"
+        report = dict(schema_version=1, request_id=command.request_id, motion_id=command.motion_id,
+            prepared_plan_id=plan.plan_id, session_id=initial["session_id"], state="PREPARING",
+            execution_token=execution_token,
+            approved_at=approval_received_at, queue_wait_s=queue_wait_s,
+            source_content_id=plan.gesture.content_id, duration_s=plan.duration_s,
+            admission_profile=("experimental_gait_window_v1" if os.getenv("SONIC_GESTURE_GAIT_ENVELOPE","0")=="1" else "legacy_instantaneous"),
+            validation=validation.__dict__, before=initial,
+            scope="experimental_reference_composition_not_dynamic_qualification")
+        def save():
+            temporary = report_path.with_suffix(".tmp")
+            temporary.write_text(json.dumps(report, indent=2, sort_keys=True)+"\n")
+            os.replace(temporary, report_path)
+        def started(details):
+            report.update(state="EXECUTING", first_reference=details,
+                approve_to_first_reference_s=time.monotonic()-approval_received_monotonic)
+            save()
+            self.dds.publish(STATUS_TOPIC, status_json(command.request_id, State.EXECUTING,
+                motion_id=command.motion_id, prepared_plan_id=plan.plan_id,
+                execution_token=execution_token,
+                session_id=initial["session_id"], report_path=str(report_path),
+                execution_stage="reference_streaming"))
+        save()
+        with self.lock:
+            self.active_gesture_token = execution_token
+        try:
+            result = self._stream_prepared_gesture(command,
+                timeout_s=motion_completion_timeout_s(math.ceil(plan.duration_s*50),50,
+                    initial.get("release_realtime_factor")), on_started=started)
+            terminal = State.ABORTED if result.get("cancelled", False) else State.COMPLETED
+            report.update(state=terminal.value, stream=result,
+                          termination_mode="reference_fade" if result.get("cancelled", False) else "natural_end",
+                          after=self._require_gesture_session(initial["session_id"]))
+            save()
+            self.dds.publish(STATUS_TOPIC, status_json(command.request_id, terminal,
+                motion_id=command.motion_id, prepared_plan_id=plan.plan_id,
+                execution_token=execution_token, termination_mode=report["termination_mode"],
+                session_id=initial["session_id"], report_path=str(report_path)))
+        except Exception as error:
+            report.update(state="ABORTED" if self.abort_event.is_set() else "FAILED", error=str(error))
+            save()
+            raise
+        finally:
+            with self.lock:
+                self.active_gesture_token = None
 
     def _execute(
         self,
@@ -442,6 +672,12 @@ class SonicSupervisor:
         queue_wait_s: float,
     ) -> None:
         artifact = (self.exchange / command.motion_id).resolve()
+        if command.prepared_plan_id is not None:
+            if os.getenv("SONIC_ENABLE_GESTURE_COMPOSITION") != "1":
+                raise ProtocolError("prepared composition execution is not enabled; original reference was not executed")
+            return self._execute_prepared(command,
+                approval_received_monotonic=approval_received_monotonic,
+                approval_received_at=approval_received_at, queue_wait_s=queue_wait_s)
         if artifact.parent != self.exchange or not artifact.is_dir():
             raise ProtocolError(f"unknown motion_id: {command.motion_id}")
         timing_path = artifact / "timing.json"
@@ -596,6 +832,7 @@ class SonicSupervisor:
                     artifact=artifact,
                     log=log,
                     planner_enabled=planner_enabled,
+                    session_id=str(isaac_ready["session_id"]),
                 )
             else:
                 # Output accumulated while Isaac was between runner sessions is
@@ -1138,6 +1375,7 @@ class SonicSupervisor:
             artifact=artifact,
             log=log,
             planner_enabled=True,
+            session_id=str(isaac_ready["session_id"]),
         )
         self._expect_or_abort(["Init Done"], timeout=30)
         self._select_loaded_motion(standing_motion_id)
@@ -1211,6 +1449,7 @@ class SonicSupervisor:
         artifact: Path,
         log: Path,
         planner_enabled: bool,
+        session_id: str | None = None,
     ) -> Path:
         executable = self.sonic_root / "target/release/g1_deploy_onnx_ref"
         if not executable.is_file():
@@ -1255,13 +1494,30 @@ class SonicSupervisor:
         child_env = os.environ.copy()
         child_env.setdefault("SONIC_SIM_HISTORY_WARMUP_TICKS", "10")
         self._controller_output_tail = ""
-        self.child = pexpect.spawn(
-            str(command_values[0]),
-            [str(value) for value in command_values[1:]],
-            encoding="utf-8",
-            timeout=180,
-            env=child_env,
+        spawn_kwargs = dict(
+            encoding="utf-8", timeout=180, env=child_env,
         )
+        if child_env.get("SONIC_ENABLE_GESTURE_COMPOSITION", "0") == "1":
+            if not planner_enabled or not self.persistent_process or not session_id:
+                raise RuntimeError("Gesture composition requires persistent planner and Isaac session")
+            if child_env.get("SONIC_DDS_DOMAIN") != "42" or child_env.get("SONIC_INTERFACE", "lo") != "lo":
+                raise RuntimeError("Gesture composition is restricted to loopback simulation domain 42")
+            if getattr(self, "gesture_channel", None) is not None:
+                raise RuntimeError("Previous gesture channel must be closed before spawning")
+            child_env["SONIC_GESTURE_SESSION_ID"] = session_id
+            self.child, self.gesture_channel = spawn_with_gesture_channel(
+                str(command_values[0]), [str(value) for value in command_values[1:]],
+                **spawn_kwargs,
+            )
+        else:
+            # Never inherit a stale descriptor/session from the parent shell.
+            child_env.pop("SONIC_GESTURE_FD", None)
+            child_env.pop("SONIC_GESTURE_SESSION_ID", None)
+            self.child = pexpect.spawn(
+                str(command_values[0]),
+                [str(value) for value in command_values[1:]],
+                **spawn_kwargs,
+            )
         self.child.logfile = self.child_log_handle
         loaded_names = []
         while True:
@@ -1363,6 +1619,11 @@ class SonicSupervisor:
                     except Exception:
                         pass
         self.child = None
+        channel = getattr(self, "gesture_channel", None)
+        if channel is not None:
+            channel.close()
+        self.gesture_channel = None
+        self.gesture_sender = None
         if self.child_log_handle is not None:
             try:
                 self.child_log_handle.close()
@@ -1436,6 +1697,11 @@ class SonicSupervisor:
                 raise RuntimeError("SONIC exited during physics wait") from exc
             text = getattr(self, "_controller_output_tail", "") + chunk
             self._controller_output_tail = text[-256:]
+            gesture_error = re.search(
+                r"\[Gesture\] (?:Disabled, stale|Receiver failed|Input disappeared|"
+                r"Rejected reference|Incompatible planner)[^\r\n]*", text)
+            if gesture_error:
+                raise RuntimeError("SONIC reference input failure: " + gesture_error.group(0))
             if re.search(r"\[ERROR\]|\bNaN\b|Safety check failed|Lost LowState|fall", text):
                 raise RuntimeError("SONIC safety error during physics wait; see sonic_persistent.log")
 

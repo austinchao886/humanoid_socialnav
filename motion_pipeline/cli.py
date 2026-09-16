@@ -30,9 +30,11 @@ def main() -> None:
     generate_video.add_argument("--model-version", default=None)
     generate_video.add_argument("--static-camera", action=argparse.BooleanOptionalAction, default=True)
     control = sub.add_parser("control")
-    control.add_argument("action", choices=["approve_execute", "reject", "abort", "reset"])
+    control.add_argument("action", choices=["approve_execute", "reject", "abort", "reset", "cancel"])
     control.add_argument("request_id")
     control.add_argument("motion_id")
+    control.add_argument("--prepared-plan-id", help="Approve this exact prepared composition plan; requires a capable supervisor")
+    control.add_argument("--execution-token", help="Cancel only this active prepared execution; obtain token from EXECUTING status/report")
     sub.add_parser("listen")
     args = parser.parse_args()
     from .runtime.dds_transport import JsonDDS
@@ -58,7 +60,9 @@ def main() -> None:
         dds.publish(VIDEO_GENERATE_TOPIC, to_json(cmd))
         print(to_json(cmd))
     elif args.command == "control":
-        cmd = ControlCommand(args.request_id, args.motion_id, args.action)
+        cmd = ControlCommand(args.request_id, args.motion_id, args.action,
+                             prepared_plan_id=args.prepared_plan_id,
+                             execution_token=args.execution_token)
         dds.publish(CONTROL_TOPIC, to_json(cmd))
         print(to_json(cmd))
     else:

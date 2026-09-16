@@ -105,22 +105,42 @@ class ControlCommand:
     motion_id: str
     action: str
     schema_version: int = SCHEMA_VERSION
+    prepared_plan_id: str | None = None
+    execution_token: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.action == "cancel":
+            value = self.execution_token
+            if (not isinstance(value, str) or len(value) != 32
+                    or any(c not in "0123456789abcdef" for c in value)):
+                raise ProtocolError("cancel requires an exact lowercase execution_token")
+        elif self.execution_token is not None:
+            raise ProtocolError("execution_token is only valid for cancel")
+        if self.prepared_plan_id is not None:
+            value = self.prepared_plan_id
+            if (not isinstance(value, str) or len(value) != 64
+                    or any(c not in "0123456789abcdef" for c in value)):
+                raise ProtocolError("prepared_plan_id must be a lowercase SHA256")
+            if self.action != "approve_execute":
+                raise ProtocolError("prepared_plan_id is only valid for approve_execute")
 
     @classmethod
     def parse(cls, raw: str) -> "ControlCommand":
         data = _object(raw)
         _version(data)
-        allowed = {"schema_version", "request_id", "motion_id", "action"}
+        allowed = {"schema_version", "request_id", "motion_id", "action", "prepared_plan_id", "execution_token"}
         _unknown(data, allowed)
         try:
             cmd = cls(
                 request_id=_nonempty(data["request_id"], "request_id"),
                 motion_id=_nonempty(data["motion_id"], "motion_id"),
                 action=_nonempty(data["action"], "action"),
+                prepared_plan_id=data.get("prepared_plan_id"),
+                execution_token=data.get("execution_token"),
             )
         except KeyError as exc:
             raise ProtocolError(f"missing field: {exc.args[0]}") from exc
-        if cmd.action not in {"approve_execute", "reject", "abort", "reset"}:
+        if cmd.action not in {"approve_execute", "reject", "abort", "reset", "cancel"}:
             raise ProtocolError(f"unknown action: {cmd.action}")
         return cmd
 
@@ -131,7 +151,12 @@ def status_json(request_id: str, state: State, **kwargs: Any) -> str:
 
 
 def to_json(command: GenerateCommand | VideoGenerateCommand | ControlCommand) -> str:
-    return json.dumps(asdict(command), separators=(",", ":"), sort_keys=True)
+    payload = asdict(command)
+    if isinstance(command, ControlCommand) and command.prepared_plan_id is None:
+        payload.pop("prepared_plan_id")  # preserve legacy wire format
+    if isinstance(command, ControlCommand) and command.execution_token is None:
+        payload.pop("execution_token")
+    return json.dumps(payload, separators=(",", ":"), sort_keys=True)
 
 
 def _object(raw: str) -> dict[str, Any]:

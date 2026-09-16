@@ -25,7 +25,8 @@ class JsonDDS:
         self._publishers: dict[str, object] = {}
         self._subscribers: list[object] = []
 
-    def publish(self, topic: str, payload: str) -> None:
+    def prepare_publisher(self, topic: str) -> None:
+        """Pay one-shot discovery before entering a time-sensitive producer loop."""
         publisher = self._publishers.get(topic)
         if publisher is None:
             publisher = self._publisher_type(topic, self._message_type)
@@ -34,6 +35,10 @@ class JsonDDS:
             # Give CycloneDDS discovery a brief window before the first one-shot
             # CLI command; long-running services only pay this once per topic.
             time.sleep(0.25)
+
+    def publish(self, topic: str, payload: str) -> None:
+        self.prepare_publisher(topic)
+        publisher = self._publishers[topic]
         message = self._message_type(data=payload)
         publisher.Write(message)
 

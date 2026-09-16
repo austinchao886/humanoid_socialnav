@@ -73,7 +73,7 @@ class ValidationResult:
     metrics: dict[str, float | int]
 
 
-def validate_artifact(path: Path) -> ValidationResult:
+def validate_artifact(path: Path, *, write_result: bool = True) -> ValidationResult:
     errors: list[str] = []
     warnings: list[str] = []
     missing = [name for name in REQUIRED if not (path / name).is_file()]
@@ -308,7 +308,8 @@ def validate_artifact(path: Path) -> ValidationResult:
         "max_end_neutral_hold_delta_rad": max_end_hold_delta,
     }
     result = ValidationResult(not errors, errors, warnings, metrics)
-    (path / "validation.json").write_text(json.dumps(asdict(result), indent=2, sort_keys=True) + "\n")
+    if write_result:
+        (path / "validation.json").write_text(json.dumps(asdict(result), indent=2, sort_keys=True) + "\n")
     return result
 
 
