@@ -5,7 +5,7 @@ import tempfile
 import unittest
 
 try:
-    from pxr import Usd, UsdGeom, UsdPhysics
+    from pxr import Gf, Usd, UsdGeom, UsdPhysics
 except ImportError as exc:
     raise unittest.SkipTest("Requires Isaac USD Python bindings") from exc
 
@@ -16,6 +16,37 @@ spec.loader.exec_module(audit)
 
 
 class InventoryTests(unittest.TestCase):
+    def test_geometry_is_in_link_frame_with_stage_units(self):
+        stage = Usd.Stage.CreateInMemory()
+        UsdGeom.SetStageMetersPerUnit(stage, 0.01)
+        body = UsdGeom.Xform.Define(stage, "/link")
+        body.AddTranslateOp().Set((100., 200., 300.))
+        body.AddRotateZOp().Set(90.)
+        UsdPhysics.RigidBodyAPI.Apply(body.GetPrim())
+        mesh = UsdGeom.Mesh.Define(stage, "/link/surface")
+        mesh.AddTranslateOp().Set((10., 0., 0.))
+        mesh.CreatePointsAttr([(0., 0., 0.), (10., 0., 0.), (0., 10., 0.)])
+        mesh.CreateFaceVertexCountsAttr([3])
+        mesh.CreateFaceVertexIndicesAttr([0, 1, 2])
+        result = audit.surface_geometry(stage, mesh.GetPrim(), "/link")
+        for got, expected in zip(result["vertices_link_m"],
+                                 [(0.1, 0., 0.), (0.2, 0., 0.), (0.1, 0.1, 0.)]):
+            for a, b in zip(got, expected):
+                self.assertAlmostEqual(a, b)
+        self.assertEqual(result["face_vertex_indices"], [0, 1, 2])
+
+    def test_primitive_affine_scale_is_retained(self):
+        stage = Usd.Stage.CreateInMemory()
+        UsdGeom.SetStageMetersPerUnit(stage, 1.)
+        UsdPhysics.RigidBodyAPI.Apply(UsdGeom.Xform.Define(stage, "/link").GetPrim())
+        sphere = UsdGeom.Sphere.Define(stage, "/link/sphere")
+        sphere.CreateRadiusAttr(0.1)
+        sphere.AddScaleOp().Set((2., 1., 1.))
+        result = audit.surface_geometry(stage, sphere.GetPrim(), "/link")
+        self.assertEqual(result["radius_local_m"], 0.1)
+        self.assertEqual(result["local_to_link_row_major"][0][0], 2.)
+        self.assertFalse(audit.surface_geometry(stage, sphere.GetPrim(), None)["available"])
+
     def inspect(self, stage):
         with tempfile.TemporaryDirectory() as directory:
             filename = Path(directory) / "fixture.usda"
