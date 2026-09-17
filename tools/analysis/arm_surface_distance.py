@@ -8,6 +8,21 @@ import fcl
 import trimesh
 
 
+def face_components(mesh):
+    """Read connectivity without Trimesh.split/submesh's default hole repair."""
+    return trimesh.graph.connected_components(
+        mesh.face_adjacency, nodes=np.arange(len(mesh.faces)), min_len=1, engine="scipy")
+
+
+def topology(mesh):
+    _, counts = np.unique(mesh.edges_sorted, axis=0, return_counts=True)
+    return dict(watertight=bool(mesh.is_watertight),
+                winding_consistent=bool(mesh.is_winding_consistent),
+                boundary_edges=int(np.count_nonzero(counts == 1)),
+                nonmanifold_edges=int(np.count_nonzero(counts > 2)),
+                face_components=len(face_components(mesh)))
+
+
 class SurfaceMesh:
     def __init__(self, vertices, faces, name):
         vertices = np.asarray(vertices, dtype=np.float64)
@@ -25,7 +40,8 @@ class SurfaceMesh:
         self.name = name
         self.closed = bool(self.mesh.is_watertight and self.mesh.is_winding_consistent)
         self.representatives = np.asarray([
-            part.vertices[0] for part in self.mesh.split(only_watertight=False)
+            self.mesh.vertices[self.mesh.faces[component[0], 0]]
+            for component in face_components(self.mesh)
         ]) if self.closed else None
         self.geometry = fcl.BVHModel()
         self.geometry.beginModel(len(self.mesh.vertices), len(self.mesh.faces))

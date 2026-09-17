@@ -1,6 +1,7 @@
 import importlib.util
 from pathlib import Path
 import unittest
+from unittest.mock import patch
 
 try:
     import numpy as np
@@ -23,6 +24,18 @@ def cube(size, name):
 
 
 class SurfaceDistanceTests(unittest.TestCase):
+    def test_topology_never_repairs_holes(self):
+        mesh = trimesh.creation.box()
+        mesh.update_faces(np.arange(len(mesh.faces) - 1))
+        original_faces = mesh.faces.copy()
+        with patch.object(trimesh.Trimesh, "fill_holes", side_effect=AssertionError("repair forbidden")):
+            report = m.topology(mesh)
+            closed = cube(1, "closed")
+            self.assertEqual(len(closed.representatives), 1)
+        self.assertEqual(report["boundary_edges"], 3)
+        self.assertFalse(report["watertight"])
+        self.assertTrue(np.array_equal(mesh.faces, original_faces))
+
     def test_separation_and_world_points(self):
         a, b = cube(1, "a"), cube(1, "b")
         pose = np.eye(4)
