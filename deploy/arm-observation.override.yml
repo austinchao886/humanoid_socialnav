@@ -1,0 +1,6 @@
+# Read-only bounded link observation; combine after current simulation overlays.
+# No controller or joystick changes. No automatic motion is generated.
+services:
+  isaac-runner:
+    environment:
+      ISAAC_RUNNER_ARM_GEOMETRY_TRACE: "1"

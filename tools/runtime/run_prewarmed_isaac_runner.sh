@@ -19,6 +19,12 @@ case "${ISAAC_RUNNER_FOOT_CONTACT_TRACE:-0}" in
   *) echo "invalid ISAAC_RUNNER_FOOT_CONTACT_TRACE (expected 0 or 1)" >&2; exit 2 ;;
 esac
 
+case "${ISAAC_RUNNER_ARM_GEOMETRY_TRACE:-0}" in
+  0) ;;
+  1) diagnostic_args+=(--arm-geometry-trace) ;;
+  *) echo "invalid ISAAC_RUNNER_ARM_GEOMETRY_TRACE (expected 0 or 1)" >&2; exit 2 ;;
+esac
+
 case "$runtime_mode" in
   persistent)
     lifecycle_args=()
