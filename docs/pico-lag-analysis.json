@@ -1,0 +1,163 @@
+{
+  "scope": "offline_recorded_motion_interior",
+  "frame_range": [
+    225,
+    1669
+  ],
+  "scan_sim_ms": [
+    -500,
+    500
+  ],
+  "positive_lag": "actual trails reference in simulation time; not capture-to-response latency",
+  "limitations": [
+    "Matched interior samples within each run; trace sampling rate differs between runs.",
+    "Reference-frame index quantizes alignment to 20 ms.",
+    "Retrospective best lag is descriptive, not an implementable controller improvement."
+  ],
+  "results": [
+    {
+      "trace": "isaac_g129_deployment_v1_20260921T025408Z.jsonl",
+      "samples": 5780,
+      "rmse_deg": 5.939698985603825,
+      "best_global_lag_sim_ms": 20,
+      "lag_adjusted_rmse_deg": 5.896652612390734,
+      "mse_reduction_fraction": 0.014441940509932416,
+      "peak_error_deg": 31.767071075899686,
+      "lag_adjusted_peak_deg": 32.89723704404279,
+      "worst_joints": [
+        {
+          "joint": "left_wrist_pitch_joint",
+          "rmse_deg": 11.55025986975606,
+          "best_lag_sim_ms": 220,
+          "lag_adjusted_rmse_deg": 11.201125869698972
+        },
+        {
+          "joint": "waist_pitch_joint",
+          "rmse_deg": 9.488674575571252,
+          "best_lag_sim_ms": -500,
+          "lag_adjusted_rmse_deg": 9.182967426833303
+        },
+        {
+          "joint": "left_knee_joint",
+          "rmse_deg": 8.50092190860792,
+          "best_lag_sim_ms": 20,
+          "lag_adjusted_rmse_deg": 8.23227277352561
+        },
+        {
+          "joint": "right_knee_joint",
+          "rmse_deg": 8.342864662240753,
+          "best_lag_sim_ms": 20,
+          "lag_adjusted_rmse_deg": 7.807175605126124
+        },
+        {
+          "joint": "right_wrist_pitch_joint",
+          "rmse_deg": 8.15518383669498,
+          "best_lag_sim_ms": 220,
+          "lag_adjusted_rmse_deg": 7.49388545207472
+        },
+        {
+          "joint": "right_wrist_roll_joint",
+          "rmse_deg": 7.6212402138895845,
+          "best_lag_sim_ms": 0,
+          "lag_adjusted_rmse_deg": 7.621240213889602
+        }
+      ]
+    },
+    {
+      "trace": "isaac_g129_deployment_v1_20260921T044012Z.jsonl",
+      "samples": 1445,
+      "rmse_deg": 6.2449859923767574,
+      "best_global_lag_sim_ms": 20,
+      "lag_adjusted_rmse_deg": 6.143327681047648,
+      "mse_reduction_fraction": 0.032291792065946345,
+      "peak_error_deg": 36.63902253725514,
+      "lag_adjusted_peak_deg": 34.751237394459636,
+      "worst_joints": [
+        {
+          "joint": "left_wrist_pitch_joint",
+          "rmse_deg": 11.579852137428995,
+          "best_lag_sim_ms": 220,
+          "lag_adjusted_rmse_deg": 11.164651192272991
+        },
+        {
+          "joint": "waist_pitch_joint",
+          "rmse_deg": 9.586530743513006,
+          "best_lag_sim_ms": -500,
+          "lag_adjusted_rmse_deg": 9.28441360124002
+        },
+        {
+          "joint": "left_knee_joint",
+          "rmse_deg": 9.568147579315976,
+          "best_lag_sim_ms": 40,
+          "lag_adjusted_rmse_deg": 8.847576274130217
+        },
+        {
+          "joint": "right_knee_joint",
+          "rmse_deg": 9.21932868137381,
+          "best_lag_sim_ms": 40,
+          "lag_adjusted_rmse_deg": 8.136786441031495
+        },
+        {
+          "joint": "right_wrist_pitch_joint",
+          "rmse_deg": 8.246731560083369,
+          "best_lag_sim_ms": 220,
+          "lag_adjusted_rmse_deg": 7.643698671160076
+        },
+        {
+          "joint": "right_wrist_roll_joint",
+          "rmse_deg": 8.1470483600316,
+          "best_lag_sim_ms": 20,
+          "lag_adjusted_rmse_deg": 8.106249249596488
+        }
+      ]
+    },
+    {
+      "trace": "isaac_g129_deployment_v1_20260921T052119Z.jsonl",
+      "samples": 1445,
+      "rmse_deg": 6.280017699894013,
+      "best_global_lag_sim_ms": 20,
+      "lag_adjusted_rmse_deg": 6.182074737027527,
+      "mse_reduction_fraction": 0.030948704221045897,
+      "peak_error_deg": 38.78160530698249,
+      "lag_adjusted_peak_deg": 38.07475927506162,
+      "worst_joints": [
+        {
+          "joint": "left_wrist_pitch_joint",
+          "rmse_deg": 11.318063554602737,
+          "best_lag_sim_ms": 200,
+          "lag_adjusted_rmse_deg": 10.957658645031003
+        },
+        {
+          "joint": "left_knee_joint",
+          "rmse_deg": 9.700916868761418,
+          "best_lag_sim_ms": 40,
+          "lag_adjusted_rmse_deg": 9.002462373450124
+        },
+        {
+          "joint": "waist_pitch_joint",
+          "rmse_deg": 9.595322676359757,
+          "best_lag_sim_ms": -500,
+          "lag_adjusted_rmse_deg": 9.287711002608534
+        },
+        {
+          "joint": "right_knee_joint",
+          "rmse_deg": 9.269885658494761,
+          "best_lag_sim_ms": 40,
+          "lag_adjusted_rmse_deg": 8.247091104987648
+        },
+        {
+          "joint": "right_wrist_pitch_joint",
+          "rmse_deg": 8.261551729732096,
+          "best_lag_sim_ms": 200,
+          "lag_adjusted_rmse_deg": 7.715864065256704
+        },
+        {
+          "joint": "right_wrist_roll_joint",
+          "rmse_deg": 8.22983176007308,
+          "best_lag_sim_ms": 20,
+          "lag_adjusted_rmse_deg": 8.190415598980845
+        }
+      ]
+    }
+  ]
+}
