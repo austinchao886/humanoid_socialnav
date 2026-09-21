@@ -155,3 +155,19 @@ def canonical_from_pico(poses):
     world=R.from_quat(values[:,3:7])*R.from_euler('y',180,degrees=True)
     local=[world[i] if p<0 else world[p].inv()*world[i] for i,p in enumerate(parents)]
     return np.stack([r.as_rotvec() for r in local[1:22]]).reshape(63),local[0].as_rotvec(),values[0,:3].copy()
+
+
+def host_latency_metadata(sample, calibration, now_epoch):
+    """Host-receive-to-reference estimate; never claim headset sensor latency."""
+    if calibration is None:
+        return dict(clock_verified=False)
+    age=now_epoch-float(calibration['measured_epoch_s'])
+    uncertainty=float(calibration['uncertainty_s'])
+    offset=float(calibration['remote_minus_source_s'])
+    if not all(math.isfinite(v) for v in [age,uncertainty,offset]) or not 0<=age<=300 or not 0<=uncertainty<=.025:
+        return dict(clock_verified=False)
+    latency=now_epoch-(float(sample['source_send_epoch_s'])+offset)+float(sample['source_age_s'])
+    if not math.isfinite(latency) or latency-uncertainty>.25 or latency+uncertainty<0:
+        raise ValueError('stale or future source timestamp after clock correction')
+    return dict(clock_verified=True,host_sample_to_reference_ms=latency*1000,
+                clock_uncertainty_ms=uncertainty*1000,clock_calibration_age_s=age)

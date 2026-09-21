@@ -1,7 +1,7 @@
 import json
 import numpy as np
 import unittest
-from motion_pipeline.pico_live import FreshnessGate,pack_v1
+from motion_pipeline.pico_live import FreshnessGate,pack_v1,host_latency_metadata
 
 def test_gap_requires_rearm_even_after_fresh_packet():
  g=FreshnessGate();assert g.accept('a',0,0);g.arm(0);assert g.active(.1)
@@ -26,6 +26,14 @@ def test_invalid_packet_rejected():
 
 def test_nonfinite_pose_rejected():
  with unittest.TestCase().assertRaises(ValueError):pack_v1(np.full((1,29),np.nan),np.ones((1,29)),[[1,0,0,0]],[0])
+
+def test_clock_corrected_latency_and_expiration():
+ sample=dict(source_send_epoch_s=100.,source_age_s=.01)
+ clock=dict(measured_epoch_s=100.,remote_minus_source_s=.02,uncertainty_s=.003)
+ result=host_latency_metadata(sample,clock,100.04)
+ assert result['clock_verified'] and abs(result['host_sample_to_reference_ms']-30)<1e-6
+ assert not host_latency_metadata(sample,clock,500.)['clock_verified']
+ with unittest.TestCase().assertRaises(ValueError):host_latency_metadata(sample,clock,100.4)
 
 if __name__ == "__main__":
  suite=unittest.TestSuite(unittest.FunctionTestCase(v) for k,v in list(globals().items()) if k.startswith("test_"))

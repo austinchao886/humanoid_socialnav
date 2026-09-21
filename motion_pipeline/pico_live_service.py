@@ -7,7 +7,7 @@ import argparse,json,time,sys
 from pathlib import Path
 import numpy as np
 import zmq
-from motion_pipeline.pico_live import CausalRetargeter,FreshnessGate,canonical_from_pico
+from motion_pipeline.pico_live import CausalRetargeter,FreshnessGate,canonical_from_pico,host_latency_metadata
 
 def atomic(path,value):
  temp=path.with_suffix(path.suffix+'.tmp');temp.write_text(json.dumps(value,allow_nan=False));temp.replace(path)
@@ -30,6 +30,9 @@ def main():
      if changed:engine.reset()
      timestamp=int(sample['capture_timestamp_ns'])/1e9
      begin=time.perf_counter();packet,reference=engine.process(pose,root,trans,timestamp)
+     try:calibration=json.loads((a.output/'clock-offset.json').read_text())
+     except (FileNotFoundError,json.JSONDecodeError):calibration=None
+     reference.update(host_latency_metadata(sample,calibration,time.time()))
      reference.update(session_id=session,source_sequence=sequence,received_monotonic_s=now,
         produced_monotonic_s=time.monotonic(),retarget_ms=(time.perf_counter()-begin)*1000,
         source_send_epoch_s=sample['source_send_epoch_s'],source_age_s=sample['source_age_s'],

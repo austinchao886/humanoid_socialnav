@@ -1,0 +1,15 @@
+# Diagnostic service only: does not arm SONIC or publish robot commands.
+services:
+  pico-live:
+    profiles: ["pico-live"]
+    image: social-motion/pico-live:development
+    build:
+      context: .
+      dockerfile: deploy/docker/pico-live.Dockerfile
+    container_name: pico-live
+    network_mode: host
+    restart: "no"
+    command: ["--models", "/models/body_models", "--output", "/motion_exchange/.runtime/pico_live"]
+    volumes:
+      - ../motion_models:/models:ro
+      - ../motion_exchange:/motion_exchange

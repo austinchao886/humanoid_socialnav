@@ -1,7 +1,7 @@
 import sys,types,unittest
 import torch
 from types import SimpleNamespace as NS
-from motion_pipeline.effort_write import install_zero_gain_effort_writer
+from motion_pipeline.effort_write import install_zero_gain_effort_writer,install_vectorized_implicit_writer
 class ImplicitActuator:pass
 class EffortWriteTest(unittest.TestCase):
  def setUp(self):
@@ -26,4 +26,21 @@ class EffortWriteTest(unittest.TestCase):
  def test_refuses_custom_actuator(self):
   r=self.robot();r.actuators={'custom':NS()}
   with self.assertRaises(ValueError):install_zero_gain_effort_writer(r)
+ def test_vectorized_writer_preserves_nonzero_pd_and_all_targets(self):
+  r=self.robot();a=r.actuators['all'];a.stiffness[:]=2;a.damping[:]=3
+  r._data.joint_pos_target=torch.tensor([[1.,2.]])
+  r._data.joint_pos=torch.tensor([[.5,.5]])
+  r._data.joint_vel_target=torch.tensor([[.1,.2]])
+  r._data.joint_vel=torch.tensor([[.3,.4]])
+  r._joint_pos_target_sim=torch.zeros(1,2);r._joint_vel_target_sim=torch.zeros(1,2)
+  outputs=[]
+  r.root_physx_view.set_dof_position_targets=lambda x,i:outputs.append(x.clone())
+  r.root_physx_view.set_dof_velocity_targets=lambda x,i:outputs.append(x.clone())
+  install_vectorized_implicit_writer(r);r.write_data_to_sim()
+  expected=2*(r.data.joint_pos_target-r.data.joint_pos)+3*(r.data.joint_vel_target-r.data.joint_vel)+r.data.joint_effort_target
+  torch.testing.assert_close(r.data.computed_torque,expected)
+  torch.testing.assert_close(r.data.applied_torque,torch.clamp(expected,min=-a.effort_limit,max=a.effort_limit))
+  torch.testing.assert_close(outputs[0],r.data.joint_pos_target)
+  torch.testing.assert_close(outputs[1],r.data.joint_vel_target)
+  torch.testing.assert_close(self.forces[0],r.data.joint_effort_target)
 if __name__=='__main__':unittest.main()
