@@ -1,0 +1,5 @@
+# Same safety function, frequency and thresholds; one packed host transfer.
+services:
+  isaac-runner:
+    environment:
+      ISAAC_RUNNER_HOST_CRITICAL_METRICS: "1"
