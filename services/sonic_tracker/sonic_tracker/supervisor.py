@@ -390,6 +390,8 @@ class SonicSupervisor:
             except queue.Empty:
                 from sonic_tracker.pico_replay import poll as poll_pico_replay
                 poll_pico_replay(self)
+                from sonic_tracker.pico_live_session import poll as poll_pico_live
+                poll_pico_live(self)
                 self._maintain_interactive_runtime()
                 continue
             queue_wait_s = time.monotonic() - received_monotonic

@@ -1,0 +1,17 @@
+{
+  "scope": "native_Isaac_trace_reference_alignment_no_lag_optimization",
+  "report": "isaac_g129_deployment_v1_20260921T044012Z_0001_pico-gmr-full-v1.json",
+  "trace": "isaac_g129_deployment_v1_20260921T044012Z.jsonl",
+  "trace_samples": 2002,
+  "joint_rmse_deg": 6.329582485784275,
+  "peak_joint_error_deg": 39.34150906713794,
+  "observed_peak_torque_ratio": 1.1175071001052856,
+  "observed_peak_root_tilt_deg": 35.22753653435778,
+  "realtime_factor": 0.640553372018189,
+  "reference_duration_s": 37.94,
+  "wall_playback_s": 59.23003711691126,
+  "limitations": [
+    "50 Hz trace can miss between-sample extrema; critical checks remain 200 Hz.",
+    "Not live acceptance. Normalized wrist/ankle errors remain unmeasured."
+  ]
+}

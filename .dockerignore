@@ -8,3 +8,6 @@
 !packages/**
 !services/
 !services/**
+!deploy/
+!deploy/docker/
+!deploy/docker/install_pico_live_hook.py

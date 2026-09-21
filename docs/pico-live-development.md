@@ -59,8 +59,28 @@ Sibling unitree_sim_isaaclab commit d774f2d on feature/pico-live-teleoperation g
 - GPU 50 Hz tracing, no optional geometry/contact diagnostics: video 0.63608 RTF; PICO 0.63044 RTF, both COMPLETED. PICO median loop 7.37 ms, monitor 0.71 ms. This isolates the earlier large source difference to runtime configuration rather than proving a PICO-specific physics cost.
 - CPU physics experiment FAILED existing startup safety gate: right-knee speed 26.4358 rad/s exceeds configured 20 rad/s. Restored GPU; limits were never relaxed.
 - 9b10260 and sibling a75015a: zero-gain write shortcut was unit-tested but correctly REFUSED the deployment asset because hand drives have nonzero gains. Not active.
-- Sibling cf11b3c added phase profiling. An early return skipped counters and prevented LowState publication; corrected in counter-preservation follow-up (see git log) and covered by regression commit 57587ae. No threshold changes. Later sibling 838348d adds optional vectorized writes.
+- Sibling cf11b3c added phase profiling. An early return skipped counters and prevented LowState publication; corrected in counter-preservation follow-up 6169713 and covered by regression commit 57587ae. No threshold changes. Later sibling 838348d adds optional vectorized writes.
 - Vectorized standard implicit actuator writes preserve all hand PD drives and all force/position/velocity targets; four equivalence/refusal tests pass. Video trial 20260921T042026Z_0001 COMPLETED at 0.76911 RTF; median scene write fell from 1.49 to 0.283 ms. This remains an opt-in candidate, not real-time qualification. Per-actuator diagnostic caches are not consumed by the zero-reward task; aggregate torque diagnostics are retained.
 - c5acfad and sibling 9afd84d: optional CPU placement of the unchanged safety function using one packed GPU-to-host copy. GPU/CPU comparison passes for 5 random inputs × 3 command/tracking modes × finite/nonfinite cases; checks still run at every 5 ms physics step. PICO physics acceptance trial pending.
 
 Current active experiment overlays: pico-live-performance, pico-live-vectorized-write, pico-live-host-metrics after existing composition and arm-observation overlays. CPU and zero-gain overlays are NOT active. WebRTC remains a separate renderer. No hardware commands have been issued; live SONIC source arming and headset acceptance remain outstanding.
+
+## Latest validation and active configuration (2026-09-21)
+
+The full plan is NOT complete; live control is not qualified or enabled.
+
+- Host critical-metrics experiment: neutral startup/standby failed existing waist error checks in sessions 042821Z and 042931Z. This was before PICO playback. Numeric function equivalence does not establish runtime qualification. Removed overlay.
+- Vectorized writer alone: the subsequent PICO request was rejected because stationary standing did not settle (043408Z session). Its faster video result does not qualify it for PICO. Removed overlay.
+- Restored baseline: existing composition + arm-observation + pico-live-performance overlays, GPU physics; no CPU, zero-gain, vectorized-write or host-metrics overlays. WebRTC remains separate. Full PICO replay 044012Z_0001 COMPLETED: 37.94 s reference / 59.230 s wall = 0.64055 RTF.
+- Native trace analysis (no lag optimization): 2002 samples, joint RMSE 6.3296 degrees, peak 39.3415 degrees, observed torque-limit ratio 1.11751, peak root tilt 35.2275 degrees. These FAIL proposed acceptance. 50 Hz traces may miss extrema; safety monitoring remains 200 Hz. See pico-live-baseline-results.json and tools/analysis/analyze_pico_trace.py. Completion of playback is not qualification.
+- Added simulation-only live session adapter and supervisor source hook, disabled by default. Admission rejects wrong DDS isolation, stale/reconnected source, clock uncertainty, joint limits and RTF outside 0.95–1.05; bounded frame history, sequence checks, entry blend and watchdog are implemented. Five admission tests pass, including rejection before publisher creation. Actual armed stream and standing-recovery behavior are NOT physics-validated. Session calibration and public controls remain unfinished.
+- Built source-based social-motion/sonic:pico-live-development, image config sha256:4717794684cc159abafef3ff1a0a50736f6dd50fda1c81b9970d9d6182dba528. It patches only the idle PICO hook into the pinned composition image instead of overwriting that image's supervisor. Five tests pass inside the built image with network disabled and no source-package mounts. This image is NOT deployed; the existing SONIC controller remains active.
+- Latest touched sibling revision: unitree_sim_isaaclab 9afd84d. All its performance switches remain opt-in; tested active baseline uses none of them.
+
+### Remaining implementation and acceptance work
+
+1. Achieve real-time physics without losing neutral-standing stability; investigate controller/physics timing interaction before adopting write optimizations.
+2. Complete session heading/floor/scale/neutral calibration and causal foot conditioning; reduce peak joint and ankle effort errors. Current hardcoded height is not per-user calibration.
+3. Qualify v1 streaming and standing recovery using recorded input; add public calibrate/arm/pause/stop controls after recovery tests, then source-switch/dropout tests.
+4. Record aligned raw/reference/actual telemetry, normalized wrist/ankle errors, and native WebRTC wall-clock video. Current metrics do not establish human-to-reference accuracy or visible latency.
+5. Run three two-minute headset sessions only after recorded tests pass. Receiver is unarmed; fresh headset input has not been observed in this development run. No hardware deployment.
