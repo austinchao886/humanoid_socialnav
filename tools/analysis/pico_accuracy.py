@@ -110,28 +110,72 @@ def analyze(artifact,report,trace,output):
     ar=Rotation.from_quat(roots[:,[4,5,6,3]]).as_matrix();rr=Rotation.from_quat(reference[frames][:,[4,5,6,3]]).as_matrix()
     local_actual=np.einsum('nji,nkj->nki',ar,actual_pos[:,ids]-roots[:,None,:3]);local_ref=np.einsum('nji,nkj->nki',rr,ref_pos[:,ids]-reference[frames,None,:3])
     world=np.linalg.norm(actual_pos[:,ids]-ref_pos[:,ids],axis=2);local=np.linalg.norm(local_actual-local_ref,axis=2)
+    # Supplemental initial-frame alignment, never a best-fit trajectory alignment.
+    # SONIC initializes heading relative to the robot; root translation is not a G1 target.
+    yaw_actual=np.arctan2(ar[0,1,0],ar[0,0,0]);yaw_ref=np.arctan2(rr[0,1,0],rr[0,0,0])
+    align=Rotation.from_euler('z',yaw_actual-yaw_ref).as_matrix()
+    offset=roots[0,:3]-align@reference[frames[0],:3];offset[2]=0.
+    aligned_ref=ref_pos[:,ids]@align.T+offset
+    aligned_world=np.linalg.norm(actual_pos[:,ids]-aligned_ref,axis=2)
+    root_delta=roots[:,:3]-reference[frames,:3]
+    root_angle=(Rotation.from_matrix(ar).inv()*Rotation.from_matrix(rr)).magnitude()
     error=actual-reference[frames,7:];names=[G1_ISAACLAB_JOINT_NAMES[i] for i in MOTOR_FROM_ISAAC]
     def metrics(mask):
         e=error[mask];result=dict(samples=int(mask.sum()))
         if not len(e):return result
         result.update(rmse_deg=float(np.degrees(np.sqrt(np.mean(e*e)))),peak_deg=float(np.degrees(np.max(np.abs(e)))),per_joint={n:dict(rmse_deg=float(np.degrees(np.sqrt(np.mean(e[:,i]**2)))),bias_deg=float(np.degrees(e[:,i].mean())),peak_deg=float(np.degrees(np.max(np.abs(e[:,i]))))) for i,n in enumerate(names)})
-        result['endpoints']={SONIC_BODY_NAMES[j]:dict(world_rmse_m=float(np.sqrt(np.mean(world[mask,i]**2))),pelvis_rmse_m=float(np.sqrt(np.mean(local[mask,i]**2))),world_normalized=float(np.sqrt(np.mean(world[mask,i]**2))/height),pelvis_normalized=float(np.sqrt(np.mean(local[mask,i]**2))/height)) for i,j in enumerate(ids)}
+        result['root']=dict(xy_rmse_m=float(np.sqrt(np.mean(np.sum(root_delta[mask,:2]**2,axis=1)))),height_bias_m=float(root_delta[mask,2].mean()),orientation_rmse_deg=float(np.degrees(np.sqrt(np.mean(root_angle[mask]**2)))))
+        result['endpoints']={SONIC_BODY_NAMES[j]:dict(world_rmse_m=float(np.sqrt(np.mean(world[mask,i]**2))),pelvis_rmse_m=float(np.sqrt(np.mean(local[mask,i]**2))),initial_aligned_world_rmse_m=float(np.sqrt(np.mean(aligned_world[mask,i]**2))),world_normalized=float(np.sqrt(np.mean(world[mask,i]**2))/height),pelvis_normalized=float(np.sqrt(np.mean(local[mask,i]**2))/height)) for i,j in enumerate(ids)}
         subset=[d for d,m in zip(rows,mask) if m];result['applied_torque_ratio_peak']=max(d['max_torque_limit_ratio'] for d in subset)
+        commands=[d for d in subset if d.get('desired_joint_pos_unitree_order') is not None]
+        if commands:
+            cmd=np.array([d['desired_joint_pos_unitree_order'] for d in commands]);obs=np.array([d['joint_pos_unitree_order'] for d in commands]);ref=reference[[d['reference_frame'] for d in commands],7:]
+            result['command_decomposition']=dict(reference_to_command_rmse_deg=float(np.degrees(np.sqrt(np.mean((cmd-ref)**2)))),command_to_actual_rmse_deg=float(np.degrees(np.sqrt(np.mean((obs-cmd)**2)))),per_joint_mean_deg={n:dict(reference=float(np.degrees(ref[:,i].mean())),command=float(np.degrees(cmd[:,i].mean())),actual=float(np.degrees(obs[:,i].mean()))) for i,n in enumerate(names)},caveat='LowCmd PD setpoints can intentionally differ from reference posture; RMS terms are not additive causal contributions.')
         saturated=[np.max(np.abs(np.array(d['requested_torque_unitree_order_nm'])-d['applied_torque_unitree_order_nm']))>1e-6 for d in subset if 'requested_torque_unitree_order_nm' in d]
         result['saturated_sample_fraction']=float(np.mean(saturated)) if saturated else None
         return result
     extra_path=artifact/'accuracy_experiment.json';extra=json.loads(extra_path.read_text()) if extra_path.exists() else {}
+    active_phase=next((a,b) for name,a,b in phases(manifest) if name=='active')
+    active_mask=(frames>=active_phase[0])&(frames<active_phase[1])
+    matched_mask=active_mask & (((frames-active_phase[0])%2==0) if extra.get('experiment')=='half' else np.ones(len(rows),dtype=bool))
+    lag_mask=(frames>=active_phase[0]+25)&(frames<active_phase[1]-25)
+    lag=[]
+    for shift in range(-25,26):
+        e=actual[lag_mask]-reference[frames[lag_mask]-shift,7:]
+        lag.append(float(np.degrees(np.sqrt(np.mean(e*e)))))
+    lag_index=int(np.argmin(lag))
     phase_metrics={name:metrics((frames>=a)&(frames<b)) for name,a,b in phases(manifest)}
     holds={h['label']:metrics((frames>=h['evaluate_start'])&(frames<h['end'])) for h in extra.get('hold_ranges',[])}
     for h in extra.get('hold_ranges',[]):
         holds[h['label']]['before_next_transition_lookahead']=metrics((frames>=h['evaluate_start'])&(frames<h['end']-45))
         mask=(frames>=h['evaluate_start'])&(frames<h['end']);values=np.array([d['joint_vel_unitree_order'] for d,m in zip(rows,mask) if m]);holds[h['label']]['settled_max_joint_speed_rad_s']=float(np.max(np.abs(values))) if len(values) else None
-    execution=json.loads(report.read_text());result=dict(motion_id=manifest['motion_id'],report=report.name,result=execution['result'],reference_sha256=checksum(artifact/'joint_pos.csv'),mjcf_sha256=checksum(MJCF),nominal_geometry_height_m=height,normalization='Full robot geometry vertical extent in official neutral pose, excluding ground plane',world_alignment='Native Z-up world coordinates; no fitted alignment',realtime_factor=execution.get('performance',{}).get('unsupported_playback_realtime_factor'),all=metrics(np.ones(len(rows),dtype=bool)),phases=phase_metrics,holds=holds,limitations=['Kinematic endpoint comparison uses the same reference model for both states; does not validate deployed geometry equivalence.','Unshifted metrics; trace-rate samples can miss extrema.'])
+    execution=json.loads(report.read_text());result=dict(motion_id=manifest['motion_id'],report=report.name,result=execution['result'],reference_sha256=checksum(artifact/'joint_pos.csv'),mjcf_sha256=checksum(MJCF),nominal_geometry_height_m=height,normalization='Full robot geometry vertical extent in official neutral pose, excluding ground plane',world_alignment='Raw native world plus separately labeled first-frame yaw/XY alignment; no fitted trajectory alignment. Exact SONIC initial heading buffer is not logged.',realtime_factor=execution.get('performance',{}).get('unsupported_playback_realtime_factor'),all=metrics(np.ones(len(rows),dtype=bool)),source_matched_active=metrics(matched_mask),lag_diagnostic=dict(best_shift_sim_ms=(lag_index-25)*20,unshifted_rmse_deg=lag[25],aligned_rmse_deg=lag[lag_index],scope='fixed active interior; not sensor latency'),phases=phase_metrics,holds=holds,limitations=['Kinematic endpoint comparison uses the same reference model for both states; does not validate deployed geometry equivalence.','Unshifted metrics; trace-rate samples can miss extrema.'])
     save(output,result);print(json.dumps({k:result[k] for k in ['motion_id','result','realtime_factor','nominal_geometry_height_m']}))
+
+def screen(artifact,output):
+    """Conservative static screen; being inside both-foot hull does not prove balance."""
+    import mujoco
+    from scipy.spatial import ConvexHull
+    q=qpos_from_artifact(artifact);meta=json.loads((artifact/'accuracy_experiment.json').read_text())
+    model=mujoco.MjModel.from_xml_path(str(MJCF));data=mujoco.MjData(model)
+    root=mujoco.mj_name2id(model,mujoco.mjtObj.mjOBJ_BODY,'pelvis')
+    feet=[mujoco.mj_name2id(model,mujoco.mjtObj.mjOBJ_BODY,n) for n in ['left_ankle_roll_link','right_ankle_roll_link']]
+    results=[]
+    for h in meta['hold_ranges']:
+        data.qpos[:]=q[h['start']];mujoco.mj_forward(model,data);points=[];bottoms=[]
+        for i in range(model.ngeom):
+            if model.geom_bodyid[i] not in feet or model.geom_contype[i]==0:continue
+            if model.geom_type[i]!=mujoco.mjtGeom.mjGEOM_SPHERE:raise ValueError('unexpected foot collision geometry')
+            radius=model.geom_size[i,0];bottoms.append(float(data.geom_xpos[i,2]-radius))
+            for x,y in [(-radius,-radius),(-radius,radius),(radius,-radius),(radius,radius)]:points.append(data.geom_xpos[i,:2]+[x,y])
+        hull=ConvexHull(points);com=data.subtree_com[root,:2];signed=hull.equations[:,:2]@com+hull.equations[:,2]
+        results.append(dict(pose=h['label'],source_frame=h['source_frame'],foot_bottom_min_m=min(bottoms),foot_bottom_max_m=max(bottoms),com_xy_m=com.tolist(),outside_even_all_feet_hull=bool(max(signed)>0),max_outside_supporting_plane_m=float(max(signed))))
+    save(output,dict(scope='reference-model static screen; conservative hull includes both entire feet irrespective of contact height, not a dynamics proof',poses=results))
 
 def main():
     p=argparse.ArgumentParser();sub=p.add_subparsers(dest='command',required=True)
     b=sub.add_parser('build');b.add_argument('--exchange',type=Path,required=True);b.add_argument('--trace',type=Path,required=True)
     a=sub.add_parser('analyze');a.add_argument('--artifact',type=Path,required=True);a.add_argument('--report',type=Path,required=True);a.add_argument('--trace',type=Path,required=True);a.add_argument('--output',type=Path,required=True)
+    c=sub.add_parser('screen');c.add_argument('--artifact',type=Path,required=True);c.add_argument('--output',type=Path,required=True)
     args=vars(p.parse_args());command=args.pop('command');globals()[command](**args)
 if __name__=='__main__':main()

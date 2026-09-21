@@ -1,0 +1,65 @@
+{
+  "scope": "reference-model quasi-static feasibility screening; conservative hull of both entire feet, not a dynamics proof",
+  "poses": [
+    {
+      "pose": "neutral",
+      "source_frame": null,
+      "foot_bottom_min_m": 0.003002512203964706,
+      "foot_bottom_max_m": 0.004022506083975715,
+      "com_xy_m": [
+        0.022443552946394607,
+        0.008675168094345239
+      ],
+      "outside_even_all_feet_hull": false,
+      "max_outside_supporting_plane_m": -0.08798232737076801
+    },
+    {
+      "pose": "pose_1",
+      "source_frame": 214,
+      "foot_bottom_min_m": 0.06478504327942908,
+      "foot_bottom_max_m": 0.08976891391132591,
+      "com_xy_m": [
+        0.056682579961931163,
+        0.08136321237575826
+      ],
+      "outside_even_all_feet_hull": false,
+      "max_outside_supporting_plane_m": -0.09281484915413962
+    },
+    {
+      "pose": "pose_2",
+      "source_frame": 538,
+      "foot_bottom_min_m": 0.04931568768367586,
+      "foot_bottom_max_m": 0.15329396784855567,
+      "com_xy_m": [
+        -0.83725458623112,
+        -1.1217395400754
+      ],
+      "outside_even_all_feet_hull": false,
+      "max_outside_supporting_plane_m": -0.033400786836664365
+    },
+    {
+      "pose": "pose_3",
+      "source_frame": 737,
+      "foot_bottom_min_m": 0.042732751837343784,
+      "foot_bottom_max_m": 0.0755147823356252,
+      "com_xy_m": [
+        -0.2647306801721496,
+        0.07844711057441468
+      ],
+      "outside_even_all_feet_hull": false,
+      "max_outside_supporting_plane_m": -0.08169826747377068
+    },
+    {
+      "pose": "pose_4",
+      "source_frame": 1174,
+      "foot_bottom_min_m": 0.04393187343678838,
+      "foot_bottom_max_m": 0.13977981144516538,
+      "com_xy_m": [
+        -0.33180878115271006,
+        -0.5553011220165182
+      ],
+      "outside_even_all_feet_hull": false,
+      "max_outside_supporting_plane_m": -0.025794900209883675
+    }
+  ]
+}

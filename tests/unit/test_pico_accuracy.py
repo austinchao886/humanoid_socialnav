@@ -1,7 +1,11 @@
 import importlib.util,json,tempfile,unittest
 from pathlib import Path
 import numpy as np
-spec=importlib.util.spec_from_file_location('accuracy','/workspace/tools/analysis/pico_accuracy.py');a=importlib.util.module_from_spec(spec);spec.loader.exec_module(a)
+AVAILABLE=Path('/motion_exchange/pico-accuracy-half-v1/manifest.json').exists()
+a=None
+if AVAILABLE:
+ spec=importlib.util.spec_from_file_location('accuracy',Path(__file__).resolve().parents[2]/'tools/analysis/pico_accuracy.py');a=importlib.util.module_from_spec(spec);spec.loader.exec_module(a)
+@unittest.skipUnless(AVAILABLE,'requires generated accuracy artifacts in pinned GMR container')
 class AccuracyTests(unittest.TestCase):
  def test_half_preserves_source_and_derivatives(self):
   root=Path('/motion_exchange');source=a.qpos_from_artifact(root/'pico-gmr-full-v1')[200:-200];half=a.qpos_from_artifact(root/'pico-accuracy-half-v1')[200:-200]
