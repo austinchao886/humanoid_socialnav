@@ -1,0 +1,8 @@
+**
+!vendor/
+!vendor/GR00T-WholeBodyControl/
+!vendor/GR00T-WholeBodyControl/external_dependencies/
+!vendor/GR00T-WholeBodyControl/external_dependencies/XRoboToolkit-PC-Service-Pybind_X86_and_ARM64/
+!vendor/GR00T-WholeBodyControl/external_dependencies/XRoboToolkit-PC-Service-Pybind_X86_and_ARM64/**
+**/.git
+**/__pycache__

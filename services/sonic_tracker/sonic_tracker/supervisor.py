@@ -388,6 +388,8 @@ class SonicSupervisor:
             try:
                 raw, received_monotonic, received_at = self.queue.get(timeout=0.5)
             except queue.Empty:
+                from sonic_tracker.pico_replay import poll as poll_pico_replay
+                poll_pico_replay(self)
                 self._maintain_interactive_runtime()
                 continue
             queue_wait_s = time.monotonic() - received_monotonic
