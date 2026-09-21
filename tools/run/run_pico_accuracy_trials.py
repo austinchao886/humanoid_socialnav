@@ -46,10 +46,11 @@ def main():
     run('docker','start','sonic-tracker')
     def interactive():
      d=read(RUNTIME/'isaac_status.json')
-     if d.get('session_id')!=session:raise RuntimeError('simulation restarted during initialization')
+     # Supervisor deliberately requests its own fresh bootstrap on startup.
+     if d.get('session_id') in (None,old):return None
      if d.get('state') in ['UNSAFE','FAILED']:raise RuntimeError('unsafe initialization: '+str(d.get('reason')))
      return d if d.get('state')=='INTERACTIVE' and time.time()-d.get('updated_epoch_s',0)<5 else None
-    wait(interactive,180,'interactive startup')
+    status=wait(interactive,180,'interactive startup');session=status['session_id'];record['session_id']=session;save()
     record['command_epoch_s']=time.time();run('docker','exec','sonic-tracker','motion-cli','--domain','42','--interface','lo','control','approve_execute',motion,motion)
     record['state']='EXECUTING';save()
     def completed():
