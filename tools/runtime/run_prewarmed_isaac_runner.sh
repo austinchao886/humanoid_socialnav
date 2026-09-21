@@ -38,6 +38,15 @@ case "$runtime_mode" in
     ;;
 esac
 
+thread_args=()
+if [[ -n "${ISAAC_RUNNER_CPU_THREADS:-}" ]]; then
+  if [[ ! "$ISAAC_RUNNER_CPU_THREADS" =~ ^[1-9][0-9]?$ ]] || (( ISAAC_RUNNER_CPU_THREADS > 64 )); then
+    echo "invalid ISAAC_RUNNER_CPU_THREADS (expected integer 1–64)" >&2; exit 2
+  fi
+  export PXR_WORK_THREAD_LIMIT="$ISAAC_RUNNER_CPU_THREADS"
+  thread_args=("--kit_args=--/plugins/carb.tasking.plugin/threadCount=$ISAAC_RUNNER_CPU_THREADS")
+fi
+
 mkdir -p "$execution_dir"
 generation=0
 
@@ -58,6 +67,7 @@ while true; do
     --device "${ISAAC_RUNNER_DEVICE:-cuda:0}" \
     "${lifecycle_args[@]}" \
     "${diagnostic_args[@]}" \
+    "${thread_args[@]}" \
     --sonic-command-timeout "$command_timeout_s" \
     --standing-command-timeout "$standing_command_timeout_s" \
     --trace-hz "$trace_hz" \

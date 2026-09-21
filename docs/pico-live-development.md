@@ -86,3 +86,15 @@ The full plan is NOT complete; live control is not qualified or enabled.
 5. Run three two-minute headset sessions only after recorded tests pass. Receiver is unarmed; fresh headset input has not been observed in this development run. No hardware deployment.
 
 Commit 7891f8a contains the guarded session adapter, admission tests, source image recipe, trace analyzer and current runbook. Rebuilt controller image is also tagged social-motion/sonic:pico-live-7891f8a (not deployed). Documentation/pinning predecessor: 9fde0e7.
+
+## Follow-up: scheduling and motor effort semantics
+
+- Four-thread Kit/PXR experiment (051632Z_0001) COMPLETED at 0.640331 RTF versus baseline 0.640553: no meaningful improvement. Overlay removed. Original launcher experiment initially rejected a split --kit_args argument; fixed to --kit_args=VALUE, then reran from a fresh session. Shell syntax and invalid values 0, -1, 65, abc were checked. No model, timestep or safety thresholds changed.
+- Sibling commit 66b6c81 corrects a missing actuation limit: installed ImplicitActuator.compute clips its diagnostic applied_effort but returns the original feed-forward control_action. The bridge previously assumed the task bounded that effort. It now clips blended asset-space effort using the same limits as the monitor and records requested effort separately. Three output-stage tests pass (including CPU/CUDA mapping, unchanged in-range values, NaN visibility); physics validation pending. This changes actuation behavior and must be assessed for stability/tracking, not treated as qualification merely because bounded output cannot exceed 1.0.
+- Trace analysis now reports saturation frequency and peak removed effort when requested/applied vectors are available; absent historical telemetry remains unknown, not zero.
+
+### Effort-limit physics validation
+
+Sibling 66b6c81 was loaded by recreating the bind-mounted runner with the original GPU/performance overlays only. PICO trial 052119Z_0001 COMPLETED: 0.634928 RTF, joint RMSE 6.32806 degrees, peak 39.51229 degrees, observed applied torque ratio 1.0. Requested versus applied telemetry shows saturation in 7/2002 samples (0.34965%), peak removal 4.61787 Nm at left_ankle_pitch_joint. Tracking remains essentially at baseline; runtime performance and peak tracking acceptance still fail. The torque ratio is now bounded by construction, so it is not independent evidence of improved motion quality. Full report: docs/pico-live-effort-limited-results.json. Trace sampling is 50 Hz; monitor/actuation remain 200 Hz.
+
+Current active configuration retains the explicit effort correction. The four-thread, vectorized-write, host-metrics, CPU, and zero-gain experiments are inactive. The renderer and unarmed receiver remain separate. Source repositories are bind-mounted into the recreated runner, so the existing Isaac image revision is unchanged. No simulator library files were patched. Live controller remains disabled.

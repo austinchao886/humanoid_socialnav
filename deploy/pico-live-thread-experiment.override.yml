@@ -1,0 +1,5 @@
+# Opt-in scheduling experiment; no physics timestep/model/safety changes.
+services:
+  isaac-runner:
+    environment:
+      ISAAC_RUNNER_CPU_THREADS: "4"
