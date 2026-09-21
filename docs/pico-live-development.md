@@ -35,3 +35,17 @@ Isaac binds the sibling workspace and primary source checkout. SONIC currently e
 Continuous transport must preserve root translation and exact sample timestamp. Add live service and bounded latest-frame processing; calibrate heading/floor/body scale; test source transitions and standing recovery; reconcile supervisor image; profile physics and diagnostics without weakening safety; investigate torque exceedance; perform same-settings video/PICO comparison and three two-minute headset sessions. No claim of live control or hardware readiness.
 
 Large recordings, videos and raw traces stay under sibling motion_exchange, outside Git. Test outputs: motion_exchange/diagnostics/pico/live-causal-benchmark.json and .jsonl.
+
+## Continuous diagnostic transport milestone
+
+- e6faa8b: causal adapter baseline and five passing unit tests.
+- Added raw PICO conversion preserving translation from the same sample and upstream quaternion conventions. Added a separate MSI raw snapshot forwarder (5558), latest-only lab subscriber (15558), and controller-free reference/status outputs. Existing SONIC endpoints are not engaged by this service.
+- Wall-clock recorded-input test: 1500 output frames from 30.0226 s raw input in 30.1069 s wall time; retarget p95 13.49 ms; source-to-reference p95 25.18 ms. 1198 raw samples skipped intentionally while selecting latest data at 50 Hz from ~90 Hz input. This excludes transport, controller, physics, and display delay.
+- Socket smoke test PASS: fresh unarmed, stale after 250 ms, new-session reset, duplicates do not refresh freshness. Ran isolated from all controller sockets using the rebuilt image.
+- Built social-motion/pico-live:development, image config sha256:f480905204670f6b0c2e066e431e5e871e54d03e3e3cd766d3299225bff6f413, with pinned pyzmq 26.4.0. Source Dockerfile tracked; this image serves diagnostic retargeting, not an armed controller.
+
+## Performance experiment configuration
+
+The running GPU runner now appends deploy/pico-live-performance.override.yml after the existing composition and arm-observation overlays. It sets trace output to 50 Hz and disables optional foot/arm geometry output; the 200 Hz critical safety monitor remains unchanged. Video trial 20260921T035426Z_0001 completed at 0.6361 RTF (15.98 s reference / 25.1225 s wall); median physics 5.75 ms, monitor 0.70 ms. PICO comparison is pending.
+
+Sibling unitree_sim_isaaclab commit d774f2d on feature/pico-live-teleoperation guards CUDA-only memory telemetry when using CPU physics. Python compilation and diff checks passed. Primary launcher now accepts opt-in ISAAC_RUNNER_DEVICE (default cuda:0); CPU overlay is experimental and must be validated independently. No physics timestep or safety threshold changed.

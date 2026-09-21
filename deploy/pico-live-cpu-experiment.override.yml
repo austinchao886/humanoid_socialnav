@@ -1,0 +1,5 @@
+# Experimental single-robot CPU physics; requires independent validation.
+services:
+  isaac-runner:
+    environment:
+      ISAAC_RUNNER_DEVICE: "cpu"

@@ -55,6 +55,7 @@ while true; do
     --task "$task" \
     --asset-profile "$asset_profile" \
     --headless \
+    --device "${ISAAC_RUNNER_DEVICE:-cuda:0}" \
     "${lifecycle_args[@]}" \
     "${diagnostic_args[@]}" \
     --sonic-command-timeout "$command_timeout_s" \

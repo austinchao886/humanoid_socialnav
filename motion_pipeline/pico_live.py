@@ -82,6 +82,7 @@ class CausalRetargeter:
                 return_full_pose=True,return_verts=False)
         self.rest=neutral.joints.detach().numpy()[0,:len(self.model.parents)]
         self.parents=self.model.parents.tolist()
+        self.initial_qpos=self.retarget.configuration.data.qpos.copy()
         self.up=Rotation.from_euler('x',90,degrees=True)
         self.tau=smoothing_tau
         self.previous=None
@@ -89,6 +90,11 @@ class CausalRetargeter:
         self.origin=None
         self.history=deque(maxlen=5)
         self.index=0
+
+    def reset(self):
+        self.previous=None;self.timestamp=None;self.origin=None
+        self.history.clear();self.index=0
+        self.retarget.configuration.update(self.initial_qpos.copy())
 
     def process(self, pose_body, root_orient, trans, timestamp):
         from smplx.joint_names import JOINT_NAMES
@@ -131,3 +137,21 @@ class CausalRetargeter:
         packet=pack_v1(*[np.stack([r[i] for r in self.history]) for i in range(4)])
         return packet,dict(joint_pos=joint.tolist(),joint_vel=velocity.tolist(),
             body_quat=quat.tolist(),source_time_s=timestamp,frame_index=self.index-1)
+
+
+def canonical_from_pico(poses):
+    """Same local rotations as pinned upstream compute_from_body_poses.
+
+    Raw PICO XYZ metres and XYZW quaternions, 24 joints in upstream order.
+    Translation is retained from the same sample, unlike native SMPL packets.
+    """
+    from scipy.spatial.transform import Rotation as R
+    values=np.asarray(poses,dtype=float)
+    if values.shape!=(24,7) or not np.isfinite(values).all():
+        raise ValueError('expected finite 24x7 PICO poses')
+    norms=np.linalg.norm(values[:,3:7],axis=1)
+    if np.max(np.abs(norms-1))>.05: raise ValueError('invalid PICO quaternions')
+    parents=[-1,0,0,0,1,2,3,4,5,6,7,8,9,9,9,12,13,14,16,17,18,19,20,22]
+    world=R.from_quat(values[:,3:7])*R.from_euler('y',180,degrees=True)
+    local=[world[i] if p<0 else world[p].inv()*world[i] for i,p in enumerate(parents)]
+    return np.stack([r.as_rotvec() for r in local[1:22]]).reshape(63),local[0].as_rotvec(),values[0,:3].copy()
