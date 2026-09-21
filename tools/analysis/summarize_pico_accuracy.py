@@ -25,9 +25,15 @@ def main():
    out['source_matched_active_rmse_deg']=span([d['rmse_deg'] for d in matched])
    joints=runs[0]['phases']['active']['per_joint']
    ranking={joint:span([d['phases']['active']['per_joint'][joint]['rmse_deg'] for d in runs]) for joint in joints}
+   out['phase_squared_error_share']={phase:span([d['phases'][phase]['samples']*d['phases'][phase]['rmse_deg']**2/(d['all']['samples']*d['all']['rmse_deg']**2) for d in runs]) for phase in runs[0]['phases']}
+   out['lag_diagnostics']=[d['lag_diagnostic'] for d in runs]
    out['worst_active_joints']=dict(sorted(ranking.items(),key=lambda kv:kv[1]['mean'],reverse=True)[:8])
    out['active_endpoints']={joint:{metric:span([d['phases']['active']['endpoints'][joint][metric] for d in runs]) for metric in runs[0]['phases']['active']['endpoints'][joint]} for joint in runs[0]['phases']['active']['endpoints']}
    out['holds']={label:dict(final_two_second_rmse_deg=span([d['holds'][label]['rmse_deg'] for d in runs]),max_joint_speed_rad_s=span([d['holds'][label]['settled_max_joint_speed_rad_s'] for d in runs]),before_lookahead_rmse_deg=span([d['holds'][label]['before_next_transition_lookahead']['rmse_deg'] for d in runs])) for label in runs[0]['holds']}
+   for label,value in out['holds'].items():
+    settled=[d['holds'][label] for d in runs if d['holds'][label].get('settling',{}).get('passed',False)]
+    value['settled_runs']=len(settled)
+    value['settled_before_lookahead_rmse_deg']=span([h['before_next_transition_lookahead']['rmse_deg'] for h in settled]) if settled else None
   summary[name]=out
  result=dict(conditions=summary,failed_or_incomplete=failed,scope='Recorded simulation attribution; no live or hardware qualification',notes=['All errors unshifted unless explicitly labeled lag diagnostics.','Range across three trials describes observed variability; not a confidence interval.','Derived pose-hold and half-speed motions are diagnostic conditions, not accepted corrections.'])
  a.output.write_text(json.dumps(result,indent=2,allow_nan=False)+'\n');print(json.dumps({k:{x:v.get(x) for x in ['attempts','completed','all','source_matched_active_rmse_deg']} for k,v in summary.items()},indent=2))

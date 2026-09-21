@@ -190,5 +190,46 @@
         }
       ]
     }
+  },
+  "analysis_commit": "f81ed7f887659bc336c0272d7a79b8322839d51d",
+  "artifacts": {
+    "pico-gmr-full-v1": {
+      "body_ang_vel.csv": "274fa24cced72f113bfebc8bec26c0f3f74c53b4d69aeb8fd5c00bcc73a2aa61",
+      "body_lin_vel.csv": "862643d70affc4e9048c5c510716b644db4f8761485c8ab72ff20f5689261881",
+      "body_pos.csv": "4ecf4e31169d2a838bb5e43a3fdb853fd2c5b71b4c5d57525f787e222e8ffa13",
+      "body_quat.csv": "e4026457601e0544766c683f46bc3884e0728328d3480c8e556fe9f9f4f7892d",
+      "joint_pos.csv": "223b4ff166bd1242851f70cff809796a5e05b226cba92618afb8f5d8c7ad32c3",
+      "joint_vel.csv": "7c7b764a5bc737d2f55aa5a4fcd3e8f4d375097dd9f66344a7434124a7c1423b",
+      "manifest.json": "17efe7d82b15c7e621aa9948aa05c6704da799f15f272f78fe4c10a3e6b77e32",
+      "metadata.txt": "8e1f200abc2cb0e5bd1116a193e5229d18c04ef3bbf308cbb81422fa9e55d2c3"
+    },
+    "pico-accuracy-half-v1": {
+      "accuracy_experiment.json": "e2ab7590de8810fd7a281c3303128030169effe59019d06dd564cc74e24995e9",
+      "body_ang_vel.csv": "08cc591b7006b8db7724b94a71692e9df56fd18f422a51d30cbb9058e206988d",
+      "body_lin_vel.csv": "a57cb6ceb5c195f5a8d5de120b0f27e60768a75b9cddce7d2ada754df3073968",
+      "body_pos.csv": "87fb9de2076e65c448b5411791c1490eb0c7540dcf8ed7e13f2e7072a6bf2473",
+      "body_quat.csv": "00dbf35cf0e063b0e70d0a13efb4a7dd927bfe1c0389c4596e4d243e0d80e271",
+      "joint_pos.csv": "1036af6c8ca0f47132ed0b2774c75ba83b8a1d0f2398228e393c3fc145b0ecb6",
+      "joint_vel.csv": "30fb5ae262e9347416cb64501b7bc2f5edeb094b10073076f78896378fff4db3",
+      "manifest.json": "81f9f8a5bf3b19aad4104774c6e79e74e98be709fa081abb8d3010510275c8b9",
+      "metadata.txt": "345cf2c5d1a7860a016cf504525c6fa7bbce4cc5edc126597baede56d4b71ef6"
+    },
+    "pico-accuracy-holds-v1": {
+      "accuracy_experiment.json": "eeb4b9c49323407886515f3e384fcfc5cbbd2ba663c105945b00e62136f04683",
+      "body_ang_vel.csv": "107b15d4b11f21c83e06a39bb83a2d0c397ae56a3bcc6d7757edd11484cfde6c",
+      "body_lin_vel.csv": "341a4863c7a2c5faeb0bbdcb9e6b2276225db5ff834b0d5fda0160951ad39872",
+      "body_pos.csv": "e76e9fe393e5ec7d9dc1a42ef89c16f1a7781f046c39d3f1f904d2e4651f3524",
+      "body_quat.csv": "4a9c2b151a5d7b00292233e041338d7bc27519b0e07ff1181b0fa6f064d709ae",
+      "joint_pos.csv": "79337b8d2ec6c73e9d2ac44030aedc680454f461853a79419e792669a21a9d0c",
+      "joint_vel.csv": "e1dbbd3e14a3859f23ad727db9d56303fa4d3f773c9f77555dc4fb8ed35b618e",
+      "manifest.json": "78e63dd60eae61ff93081447b71ca8cf3fe48cf30df95325c9a6157df6e51bde",
+      "metadata.txt": "2223586cf67e0825002f26fb88537e46257e95183ca807443f0abda32222dc04"
+    }
+  },
+  "policy_checksums": {
+    "policy/release/model_decoder.onnx": "c7241a123eaa36b5d64bad19540efde93cac1ad443bd4572fd12ca99898118ed",
+    "policy/release/model_encoder.onnx": "013ab0287236aa2721e13f1e936d699db982302d0de0bfcdae76d5c3245362d3",
+    "policy/release/observation_config.yaml": "466d05947c78af6c76388adfb86e3a2a77b2a1d921a64883ed3d085ebf58de1b",
+    "planner/target_vel/V2/planner_sonic.onnx": "39b553e197f62f077975ba38512bc04781a3fc37c2af7c6756e04629f760edea"
   }
 }

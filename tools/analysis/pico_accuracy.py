@@ -133,23 +133,36 @@ def analyze(artifact,report,trace,output):
             result['command_decomposition']=dict(reference_to_command_rmse_deg=float(np.degrees(np.sqrt(np.mean((cmd-ref)**2)))),command_to_actual_rmse_deg=float(np.degrees(np.sqrt(np.mean((obs-cmd)**2)))),per_joint_mean_deg={n:dict(reference=float(np.degrees(ref[:,i].mean())),command=float(np.degrees(cmd[:,i].mean())),actual=float(np.degrees(obs[:,i].mean()))) for i,n in enumerate(names)},caveat='LowCmd PD setpoints can intentionally differ from reference posture; RMS terms are not additive causal contributions.')
         saturated=[np.max(np.abs(np.array(d['requested_torque_unitree_order_nm'])-d['applied_torque_unitree_order_nm']))>1e-6 for d in subset if 'requested_torque_unitree_order_nm' in d]
         result['saturated_sample_fraction']=float(np.mean(saturated)) if saturated else None
+        effort=[d for d in subset if 'requested_torque_unitree_order_nm' in d]
+        if effort:
+            req=np.array([d['requested_torque_unitree_order_nm'] for d in effort]);app=np.array([d['applied_torque_unitree_order_nm'] for d in effort]);removed=np.abs(req-app)
+            result['per_joint_effort']={n:dict(requested_abs_peak_nm=float(np.max(np.abs(req[:,i]))),applied_abs_peak_nm=float(np.max(np.abs(app[:,i]))),clipped_sample_fraction=float(np.mean(removed[:,i]>1e-6)),max_removed_nm=float(np.max(removed[:,i]))) for i,n in enumerate(names)}
         return result
     extra_path=artifact/'accuracy_experiment.json';extra=json.loads(extra_path.read_text()) if extra_path.exists() else {}
     active_phase=next((a,b) for name,a,b in phases(manifest) if name=='active')
     active_mask=(frames>=active_phase[0])&(frames<active_phase[1])
     matched_mask=active_mask & (((frames-active_phase[0])%2==0) if extra.get('experiment')=='half' else np.ones(len(rows),dtype=bool))
     lag_mask=(frames>=active_phase[0]+25)&(frames<active_phase[1]-25)
-    lag=[]
+    lag=[];joint_lag=[]
     for shift in range(-25,26):
         e=actual[lag_mask]-reference[frames[lag_mask]-shift,7:]
         lag.append(float(np.degrees(np.sqrt(np.mean(e*e)))))
-    lag_index=int(np.argmin(lag))
+        joint_lag.append(np.degrees(np.sqrt(np.mean(e*e,axis=0))))
+    lag_index=int(np.argmin(lag));joint_lag=np.array(joint_lag)
+    joint_lag_report={n:dict(best_shift_sim_ms=(int(np.argmin(joint_lag[:,i]))-25)*20,unshifted_rmse_deg=float(joint_lag[25,i]),aligned_rmse_deg=float(np.min(joint_lag[:,i])),search_boundary=bool(np.argmin(joint_lag[:,i]) in (0,50))) for i,n in enumerate(names)}
     phase_metrics={name:metrics((frames>=a)&(frames<b)) for name,a,b in phases(manifest)}
     holds={h['label']:metrics((frames>=h['evaluate_start'])&(frames<h['end'])) for h in extra.get('hold_ranges',[])}
     for h in extra.get('hold_ranges',[]):
         holds[h['label']]['before_next_transition_lookahead']=metrics((frames>=h['evaluate_start'])&(frames<h['end']-45))
         mask=(frames>=h['evaluate_start'])&(frames<h['end']);values=np.array([d['joint_vel_unitree_order'] for d,m in zip(rows,mask) if m]);holds[h['label']]['settled_max_joint_speed_rad_s']=float(np.max(np.abs(values))) if len(values) else None
-    execution=json.loads(report.read_text());result=dict(motion_id=manifest['motion_id'],report=report.name,result=execution['result'],reference_sha256=checksum(artifact/'joint_pos.csv'),mjcf_sha256=checksum(MJCF),nominal_geometry_height_m=height,normalization='Full robot geometry vertical extent in official neutral pose, excluding ground plane',world_alignment='Raw native world plus separately labeled first-frame yaw/XY alignment; no fitted trajectory alignment. Exact SONIC initial heading buffer is not logged.',realtime_factor=execution.get('performance',{}).get('unsupported_playback_realtime_factor'),all=metrics(np.ones(len(rows),dtype=bool)),source_matched_active=metrics(matched_mask),lag_diagnostic=dict(best_shift_sim_ms=(lag_index-25)*20,unshifted_rmse_deg=lag[25],aligned_rmse_deg=lag[lag_index],scope='fixed active interior; not sensor latency'),phases=phase_metrics,holds=holds,limitations=['Kinematic endpoint comparison uses the same reference model for both states; does not validate deployed geometry equivalence.','Unshifted metrics; trace-rate samples can miss extrema.'])
+        selected=[d for d,m in zip(rows,mask) if m]
+        if selected:
+            planar=max(float(np.linalg.norm(d['root_state_w'][7:9])) for d in selected)
+            yaw=max(abs(d['root_state_w'][12]) for d in selected)
+            tilt=max(d.get('root_tilt_rad',float('inf')) for d in selected)
+            low=min(d['root_state_w'][2] for d in selected)
+            holds[h['label']]['settling']=dict(max_planar_speed_m_s=planar,max_yaw_rate_rad_s=yaw,max_tilt_rad=tilt,min_root_height_m=low,passed=bool(holds[h['label']]['settled_max_joint_speed_rad_s']<=.9 and planar<=.15 and yaw<=.2 and tilt<=.6 and low>=.5),criteria='joint speed <=0.9, planar <=0.15, yaw rate <=0.2, tilt <=0.6, height >=0.5 over final 2 s')
+    execution=json.loads(report.read_text());result=dict(motion_id=manifest['motion_id'],report=report.name,result=execution['result'],reference_sha256=checksum(artifact/'joint_pos.csv'),mjcf_sha256=checksum(MJCF),nominal_geometry_height_m=height,normalization='Full robot geometry vertical extent in official neutral pose, excluding ground plane',world_alignment='Raw native world plus separately labeled first-frame yaw/XY alignment; no fitted trajectory alignment. Exact SONIC initial heading buffer is not logged.',realtime_factor=execution.get('performance',{}).get('unsupported_playback_realtime_factor'),all=metrics(np.ones(len(rows),dtype=bool)),source_matched_active=metrics(matched_mask),lag_diagnostic=dict(best_shift_sim_ms=(lag_index-25)*20,unshifted_rmse_deg=lag[25],aligned_rmse_deg=lag[lag_index],scope='fixed active interior; not sensor latency; per-joint minima are descriptive, not causal latency estimates',per_joint=joint_lag_report),phases=phase_metrics,holds=holds,limitations=['Kinematic endpoint comparison uses the same reference model for both states; does not validate deployed geometry equivalence.','Unshifted metrics; trace-rate samples can miss extrema.'])
     save(output,result);print(json.dumps({k:result[k] for k in ['motion_id','result','realtime_factor','nominal_geometry_height_m']}))
 
 def screen(artifact,output):
@@ -172,10 +185,19 @@ def screen(artifact,output):
         results.append(dict(pose=h['label'],source_frame=h['source_frame'],foot_bottom_min_m=min(bottoms),foot_bottom_max_m=max(bottoms),com_xy_m=com.tolist(),outside_even_all_feet_hull=bool(max(signed)>0),max_outside_supporting_plane_m=float(max(signed))))
     save(output,dict(scope='reference-model static screen; conservative hull includes both entire feet irrespective of contact height, not a dynamics proof',poses=results))
 
+def reanalyze(directory,exchange):
+    """Refresh completed study analyses; retain failures in the original trial ledger."""
+    for trial in json.loads((directory/'trials.json').read_text()):
+        if trial['state']!='COMPLETED':continue
+        report=exchange/'executions'/Path(trial['report']).name
+        trace=exchange/'executions'/Path(json.loads(report.read_text())['trace_path']).name
+        analyze(exchange/trial['motion_id'],report,trace,directory/Path(trial['analysis']).name)
+
 def main():
     p=argparse.ArgumentParser();sub=p.add_subparsers(dest='command',required=True)
     b=sub.add_parser('build');b.add_argument('--exchange',type=Path,required=True);b.add_argument('--trace',type=Path,required=True)
     a=sub.add_parser('analyze');a.add_argument('--artifact',type=Path,required=True);a.add_argument('--report',type=Path,required=True);a.add_argument('--trace',type=Path,required=True);a.add_argument('--output',type=Path,required=True)
     c=sub.add_parser('screen');c.add_argument('--artifact',type=Path,required=True);c.add_argument('--output',type=Path,required=True)
+    d=sub.add_parser('reanalyze');d.add_argument('--directory',type=Path,required=True);d.add_argument('--exchange',type=Path,required=True)
     args=vars(p.parse_args());command=args.pop('command');globals()[command](**args)
 if __name__=='__main__':main()
