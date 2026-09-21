@@ -21,21 +21,22 @@ def wait(predicate,seconds,label):
  raise TimeoutError(label)
 
 def main():
- p=argparse.ArgumentParser();p.add_argument('--output',type=Path,required=True);a=p.parse_args();a.output.mkdir(parents=True,exist_ok=False)
+ p=argparse.ArgumentParser();p.add_argument('--output',type=Path,required=True);p.add_argument('--conditions',nargs='+',default=['pico-gmr-full-v1','pico-accuracy-half-v1','pico-accuracy-holds-v1']);p.add_argument('--repetitions',type=int,choices=range(1,4),default=3);a=p.parse_args();a.output.mkdir(parents=True,exist_ok=False)
  # Fail closed before restarting anything: require isolated simulation DDS and expected torque-limited code.
  info=json.loads(run('docker','inspect','isaac-runner'))[0];env=dict(v.split('=',1) for v in info['Config']['Env'])
  assert env['DDS_DOMAIN']=='42' and env['DDS_INTERFACE']=='lo' and env['SIM_LOWCMD_TOPIC']=='rt/socialnav_sim/g1/lowcmd'
  assert all(env.get(k,'0')=='0' for k in ['ISAAC_RUNNER_VECTORIZED_IMPLICIT_WRITES','ISAAC_RUNNER_HOST_CRITICAL_METRICS','ISAAC_RUNNER_ZERO_GAIN_EFFORT_WRITES'])
  assert env.get('ISAAC_RUNNER_DEVICE','cuda:0')=='cuda:0'
  source=(ROOT/'unitree_sim_isaaclab/action_provider/action_provider_sonic_dds.py').read_text();assert 'self._motor_effort_upper' in source
- conditions=['pico-gmr-full-v1','pico-accuracy-half-v1','pico-accuracy-holds-v1']
+ conditions=a.conditions
+ assert all('/' not in motion and motion.startswith('pico-') for motion in conditions)
  for motion in conditions:assert read(EXCHANGE/motion/'validation.json').get('valid'),motion
  records=[]
  def save():
   temp=a.output/'trials.tmp';temp.write_text(json.dumps(records,indent=2)+'\n');temp.replace(a.output/'trials.json')
- for repetition in range(3):
-  for index in range(3):
-   motion=conditions[(index+repetition)%3];record=dict(repetition=repetition+1,motion_id=motion,state='STARTING',started_epoch_s=time.time());records.append(record);save();print(json.dumps(record),flush=True)
+ for repetition in range(a.repetitions):
+  for index in range(len(conditions)):
+   motion=conditions[(index+repetition)%len(conditions)];record=dict(repetition=repetition+1,motion_id=motion,state='STARTING',started_epoch_s=time.time());records.append(record);save();print(json.dumps(record),flush=True)
    try:
     old=read(RUNTIME/'isaac_status.json').get('session_id')
     run('docker','stop','sonic-tracker');run('docker','restart','isaac-runner')

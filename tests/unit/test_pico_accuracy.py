@@ -46,4 +46,20 @@ class AccuracyTests(unittest.TestCase):
    effort=d['all']['per_joint_effort']['left_hip_pitch_joint']
    self.assertEqual(effort['requested_abs_peak_nm'],4.);self.assertEqual(effort['applied_abs_peak_nm'],3.)
    self.assertEqual(effort['clipped_sample_fraction'],.5);self.assertEqual(effort['max_removed_nm'],1.)
+ def test_long_hold_evaluation_excludes_later_motion(self):
+  artifact=Path('/motion_exchange/pico-accuracy-longholds-v1')
+  if not artifact.exists():self.skipTest('requires long-hold diagnostic artifact')
+  q=a.qpos_from_artifact(artifact);holds=json.loads((artifact/'accuracy_experiment.json').read_text())['hold_ranges']
+  with tempfile.TemporaryDirectory() as directory:
+   t=Path(directory);rows=[]
+   for h in holds:
+    self.assertGreaterEqual(h['end']-h['evaluate_end'],150)
+    for f in [h['evaluate_start'],h['evaluate_end']-1,h['evaluate_end']+1]:
+     actual=q[f,7:].copy()
+     if f>h['evaluate_end']:actual[0]+=1.
+     rows.append(dict(reference_frame=f,joint_pos_unitree_order=actual.tolist(),joint_vel_unitree_order=[0.]*29,root_state_w=q[f,:7].tolist()+[0.]*6,root_tilt_rad=.1,max_torque_limit_ratio=0.,requested_torque_unitree_order_nm=[0.]*29,applied_torque_unitree_order_nm=[0.]*29))
+   (t/'trace').write_text(''.join(json.dumps(d)+'\n' for d in rows));(t/'report').write_text(json.dumps(dict(result='COMPLETED',performance={})))
+   a.analyze(artifact,t/'report',t/'trace',t/'out');d=json.loads((t/'out').read_text())
+   self.assertGreater(d['all']['rmse_deg'],0.)
+   for h in d['holds'].values():self.assertEqual(h['samples'],2);self.assertEqual(h['rmse_deg'],0.);self.assertTrue(h['settling']['passed'])
 if __name__=='__main__':unittest.main()

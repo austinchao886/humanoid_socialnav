@@ -151,17 +151,17 @@ def analyze(artifact,report,trace,output):
     lag_index=int(np.argmin(lag));joint_lag=np.array(joint_lag)
     joint_lag_report={n:dict(best_shift_sim_ms=(int(np.argmin(joint_lag[:,i]))-25)*20,unshifted_rmse_deg=float(joint_lag[25,i]),aligned_rmse_deg=float(np.min(joint_lag[:,i])),search_boundary=bool(np.argmin(joint_lag[:,i]) in (0,50))) for i,n in enumerate(names)}
     phase_metrics={name:metrics((frames>=a)&(frames<b)) for name,a,b in phases(manifest)}
-    holds={h['label']:metrics((frames>=h['evaluate_start'])&(frames<h['end'])) for h in extra.get('hold_ranges',[])}
+    holds={h['label']:metrics((frames>=h['evaluate_start'])&(frames<h.get('evaluate_end',h['end']))) for h in extra.get('hold_ranges',[])}
     for h in extra.get('hold_ranges',[]):
-        holds[h['label']]['before_next_transition_lookahead']=metrics((frames>=h['evaluate_start'])&(frames<h['end']-45))
-        mask=(frames>=h['evaluate_start'])&(frames<h['end']);values=np.array([d['joint_vel_unitree_order'] for d,m in zip(rows,mask) if m]);holds[h['label']]['settled_max_joint_speed_rad_s']=float(np.max(np.abs(values))) if len(values) else None
+        holds[h['label']]['before_next_transition_lookahead']=metrics((frames>=h['evaluate_start'])&(frames<min(h.get('evaluate_end',h['end']),h['end']-45)))
+        mask=(frames>=h['evaluate_start'])&(frames<h.get('evaluate_end',h['end']));values=np.array([d['joint_vel_unitree_order'] for d,m in zip(rows,mask) if m]);holds[h['label']]['settled_max_joint_speed_rad_s']=float(np.max(np.abs(values))) if len(values) else None
         selected=[d for d,m in zip(rows,mask) if m]
         if selected:
             planar=max(float(np.linalg.norm(d['root_state_w'][7:9])) for d in selected)
             yaw=max(abs(d['root_state_w'][12]) for d in selected)
             tilt=max(d.get('root_tilt_rad',float('inf')) for d in selected)
             low=min(d['root_state_w'][2] for d in selected)
-            holds[h['label']]['settling']=dict(max_planar_speed_m_s=planar,max_yaw_rate_rad_s=yaw,max_tilt_rad=tilt,min_root_height_m=low,passed=bool(holds[h['label']]['settled_max_joint_speed_rad_s']<=.9 and planar<=.15 and yaw<=.2 and tilt<=.6 and low>=.5),criteria='joint speed <=0.9, planar <=0.15, yaw rate <=0.2, tilt <=0.6, height >=0.5 over final 2 s')
+            holds[h['label']]['settling']=dict(max_planar_speed_m_s=planar,max_yaw_rate_rad_s=yaw,max_tilt_rad=tilt,min_root_height_m=low,passed=bool(holds[h['label']]['settled_max_joint_speed_rad_s']<=.9 and planar<=.15 and yaw<=.2 and tilt<=.6 and low>=.5),criteria='joint speed <=0.9, planar <=0.15, yaw rate <=0.2, tilt <=0.6, height >=0.5 over declared 2 s evaluation window')
     execution=json.loads(report.read_text());result=dict(motion_id=manifest['motion_id'],report=report.name,result=execution['result'],reference_sha256=checksum(artifact/'joint_pos.csv'),mjcf_sha256=checksum(MJCF),nominal_geometry_height_m=height,normalization='Full robot geometry vertical extent in official neutral pose, excluding ground plane',world_alignment='Raw native world plus separately labeled first-frame yaw/XY alignment; no fitted trajectory alignment. Exact SONIC initial heading buffer is not logged.',realtime_factor=execution.get('performance',{}).get('unsupported_playback_realtime_factor'),all=metrics(np.ones(len(rows),dtype=bool)),source_matched_active=metrics(matched_mask),lag_diagnostic=dict(best_shift_sim_ms=(lag_index-25)*20,unshifted_rmse_deg=lag[25],aligned_rmse_deg=lag[lag_index],scope='fixed active interior; not sensor latency; per-joint minima are descriptive, not causal latency estimates',per_joint=joint_lag_report),phases=phase_metrics,holds=holds,limitations=['Kinematic endpoint comparison uses the same reference model for both states; does not validate deployed geometry equivalence.','Unshifted metrics; trace-rate samples can miss extrema.'])
     save(output,result);print(json.dumps({k:result[k] for k in ['motion_id','result','realtime_factor','nominal_geometry_height_m']}))
 
