@@ -1,0 +1,5 @@
+# Experimental optimization; refuses nonzero gains or nonstandard actuators.
+services:
+  isaac-runner:
+    environment:
+      ISAAC_RUNNER_ZERO_GAIN_EFFORT_WRITES: "1"
