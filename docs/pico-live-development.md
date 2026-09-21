@@ -84,3 +84,5 @@ The full plan is NOT complete; live control is not qualified or enabled.
 3. Qualify v1 streaming and standing recovery using recorded input; add public calibrate/arm/pause/stop controls after recovery tests, then source-switch/dropout tests.
 4. Record aligned raw/reference/actual telemetry, normalized wrist/ankle errors, and native WebRTC wall-clock video. Current metrics do not establish human-to-reference accuracy or visible latency.
 5. Run three two-minute headset sessions only after recorded tests pass. Receiver is unarmed; fresh headset input has not been observed in this development run. No hardware deployment.
+
+Commit 7891f8a contains the guarded session adapter, admission tests, source image recipe, trace analyzer and current runbook. Rebuilt controller image is also tagged social-motion/sonic:pico-live-7891f8a (not deployed). Documentation/pinning predecessor: 9fde0e7.
