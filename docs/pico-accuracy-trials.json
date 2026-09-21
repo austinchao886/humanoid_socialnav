@@ -1,0 +1,110 @@
+[
+  {
+    "repetition": 1,
+    "motion_id": "pico-gmr-full-v1",
+    "state": "COMPLETED",
+    "started_epoch_s": 1790009493.8210313,
+    "session_id": "bc33542bb9b249559aa0d8503be47397",
+    "command_epoch_s": 1790009575.4687946,
+    "report": "/home/adcs-public-robot/Documents/socialnav_humanoid_ws/motion_exchange/executions/isaac_g129_deployment_v1_20260921T165214Z_0001_pico-gmr-full-v1.json",
+    "realtime_factor": 0.6444791375117886,
+    "analysis": "/home/adcs-public-robot/Documents/socialnav_humanoid_ws/motion_exchange/diagnostics/pico/accuracy-v1/trials-v2/01-pico-gmr-full-v1.json",
+    "finished_epoch_s": 1790009650.9517946
+  },
+  {
+    "repetition": 1,
+    "motion_id": "pico-accuracy-half-v1",
+    "state": "COMPLETED",
+    "started_epoch_s": 1790009650.9522748,
+    "session_id": "82b9b6565c5449dea832eb676046a6f7",
+    "command_epoch_s": 1790009740.7330227,
+    "report": "/home/adcs-public-robot/Documents/socialnav_humanoid_ws/motion_exchange/executions/isaac_g129_deployment_v1_20260921T165501Z_0001_pico-accuracy-half-v1.json",
+    "realtime_factor": 0.6437747418907833,
+    "analysis": "/home/adcs-public-robot/Documents/socialnav_humanoid_ws/motion_exchange/diagnostics/pico/accuracy-v1/trials-v2/02-pico-accuracy-half-v1.json",
+    "finished_epoch_s": 1790009865.5047865
+  },
+  {
+    "repetition": 1,
+    "motion_id": "pico-accuracy-holds-v1",
+    "state": "COMPLETED",
+    "started_epoch_s": 1790009865.5053625,
+    "session_id": "0aaf42b4be3c4bdda4b3a2e2f3d6db6f",
+    "command_epoch_s": 1790009955.4071944,
+    "report": "/home/adcs-public-robot/Documents/socialnav_humanoid_ws/motion_exchange/executions/isaac_g129_deployment_v1_20260921T165836Z_0001_pico-accuracy-holds-v1.json",
+    "realtime_factor": 0.6398333384547247,
+    "analysis": "/home/adcs-public-robot/Documents/socialnav_humanoid_ws/motion_exchange/diagnostics/pico/accuracy-v1/trials-v2/03-pico-accuracy-holds-v1.json",
+    "finished_epoch_s": 1790010048.6932209
+  },
+  {
+    "repetition": 2,
+    "motion_id": "pico-accuracy-half-v1",
+    "state": "COMPLETED",
+    "started_epoch_s": 1790010048.6936166,
+    "session_id": "c7abb4907e164e63bf2ca430b4f9ffc6",
+    "command_epoch_s": 1790010139.5388122,
+    "report": "/home/adcs-public-robot/Documents/socialnav_humanoid_ws/motion_exchange/executions/isaac_g129_deployment_v1_20260921T170139Z_0001_pico-accuracy-half-v1.json",
+    "realtime_factor": 0.6335618946143118,
+    "analysis": "/home/adcs-public-robot/Documents/socialnav_humanoid_ws/motion_exchange/diagnostics/pico/accuracy-v1/trials-v2/04-pico-accuracy-half-v1.json",
+    "finished_epoch_s": 1790010264.8128948
+  },
+  {
+    "repetition": 2,
+    "motion_id": "pico-accuracy-holds-v1",
+    "state": "COMPLETED",
+    "started_epoch_s": 1790010264.8135056,
+    "session_id": "f7d94ea58c0946298d07be29ffcec504",
+    "command_epoch_s": 1790010355.6392608,
+    "report": "/home/adcs-public-robot/Documents/socialnav_humanoid_ws/motion_exchange/executions/isaac_g129_deployment_v1_20260921T170515Z_0001_pico-accuracy-holds-v1.json",
+    "realtime_factor": 0.6334724135081926,
+    "analysis": "/home/adcs-public-robot/Documents/socialnav_humanoid_ws/motion_exchange/diagnostics/pico/accuracy-v1/trials-v2/05-pico-accuracy-holds-v1.json",
+    "finished_epoch_s": 1790010450.3145187
+  },
+  {
+    "repetition": 2,
+    "motion_id": "pico-gmr-full-v1",
+    "state": "COMPLETED",
+    "started_epoch_s": 1790010450.3149617,
+    "session_id": "181281696d2740559f398ecad656a7ac",
+    "command_epoch_s": 1790010541.1742454,
+    "report": "/home/adcs-public-robot/Documents/socialnav_humanoid_ws/motion_exchange/executions/isaac_g129_deployment_v1_20260921T170821Z_0001_pico-gmr-full-v1.json",
+    "realtime_factor": 0.6349008726527847,
+    "analysis": "/home/adcs-public-robot/Documents/socialnav_humanoid_ws/motion_exchange/diagnostics/pico/accuracy-v1/trials-v2/06-pico-gmr-full-v1.json",
+    "finished_epoch_s": 1790010618.9093356
+  },
+  {
+    "repetition": 3,
+    "motion_id": "pico-accuracy-holds-v1",
+    "state": "COMPLETED",
+    "started_epoch_s": 1790010618.9099965,
+    "session_id": "72ad15ef09714c078d07736d4c80e363",
+    "command_epoch_s": 1790010709.8217547,
+    "report": "/home/adcs-public-robot/Documents/socialnav_humanoid_ws/motion_exchange/executions/isaac_g129_deployment_v1_20260921T171110Z_0001_pico-accuracy-holds-v1.json",
+    "realtime_factor": 0.6378066468006586,
+    "analysis": "/home/adcs-public-robot/Documents/socialnav_humanoid_ws/motion_exchange/diagnostics/pico/accuracy-v1/trials-v2/07-pico-accuracy-holds-v1.json",
+    "finished_epoch_s": 1790010802.7853444
+  },
+  {
+    "repetition": 3,
+    "motion_id": "pico-gmr-full-v1",
+    "state": "COMPLETED",
+    "started_epoch_s": 1790010802.785802,
+    "session_id": "f7079c268d4a44e4a339d5e45d0bc6fa",
+    "command_epoch_s": 1790010893.6082664,
+    "report": "/home/adcs-public-robot/Documents/socialnav_humanoid_ws/motion_exchange/executions/isaac_g129_deployment_v1_20260921T171413Z_0001_pico-gmr-full-v1.json",
+    "realtime_factor": 0.6385199284448458,
+    "analysis": "/home/adcs-public-robot/Documents/socialnav_humanoid_ws/motion_exchange/diagnostics/pico/accuracy-v1/trials-v2/08-pico-gmr-full-v1.json",
+    "finished_epoch_s": 1790010971.3163872
+  },
+  {
+    "repetition": 3,
+    "motion_id": "pico-accuracy-half-v1",
+    "state": "COMPLETED",
+    "started_epoch_s": 1790010971.3170578,
+    "session_id": "f721b0bd5ec24e6e853c260c5b322bb0",
+    "command_epoch_s": 1790011063.152599,
+    "report": "/home/adcs-public-robot/Documents/socialnav_humanoid_ws/motion_exchange/executions/isaac_g129_deployment_v1_20260921T171702Z_0001_pico-accuracy-half-v1.json",
+    "realtime_factor": 0.6349880148327958,
+    "analysis": "/home/adcs-public-robot/Documents/socialnav_humanoid_ws/motion_exchange/diagnostics/pico/accuracy-v1/trials-v2/09-pico-accuracy-half-v1.json",
+    "finished_epoch_s": 1790011188.729566
+  }
+]

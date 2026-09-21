@@ -29,4 +29,21 @@ class AccuracyTests(unittest.TestCase):
   for h in info['hold_ranges']:
    self.assertEqual(h['end']-h['start'],250);self.assertEqual(h['end']-h['evaluate_start'],100)
    np.testing.assert_allclose(q[h['start']:h['end']],np.repeat(q[h['start']][None],250,axis=0),atol=1e-12)
+ def test_unsettled_hold_and_hidden_requested_effort_remain_visible(self):
+  artifact=Path('/motion_exchange/pico-accuracy-holds-v1');q=a.qpos_from_artifact(artifact);holds=json.loads((artifact/'accuracy_experiment.json').read_text())['hold_ranges']
+  with tempfile.TemporaryDirectory() as directory:
+   t=Path(directory);rows=[]
+   for i,h in enumerate(holds):
+    for sample,f in enumerate([h['evaluate_start'],h['end']-1]):
+     root=q[f,:7].tolist()+[0.,0.,0.,0.,0.,.21 if i==0 else 0.]
+     req=[0.]*29;app=[0.]*29
+     if sample:req[0]=4.;app[0]=3.
+     rows.append(dict(reference_frame=f,joint_pos_unitree_order=q[f,7:].tolist(),joint_vel_unitree_order=[0.]*29,root_state_w=root,root_tilt_rad=.1,max_torque_limit_ratio=1.,requested_torque_unitree_order_nm=req,applied_torque_unitree_order_nm=app))
+   (t/'trace').write_text(''.join(json.dumps(d)+'\n' for d in rows));(t/'report').write_text(json.dumps(dict(result='COMPLETED',performance={})))
+   a.analyze(artifact,t/'report',t/'trace',t/'out');d=json.loads((t/'out').read_text())
+   self.assertFalse(d['holds']['neutral']['settling']['passed'])
+   self.assertTrue(d['holds']['pose_1']['settling']['passed'])
+   effort=d['all']['per_joint_effort']['left_hip_pitch_joint']
+   self.assertEqual(effort['requested_abs_peak_nm'],4.);self.assertEqual(effort['applied_abs_peak_nm'],3.)
+   self.assertEqual(effort['clipped_sample_fraction'],.5);self.assertEqual(effort['max_removed_nm'],1.)
 if __name__=='__main__':unittest.main()

@@ -191,7 +191,7 @@
       ]
     }
   },
-  "analysis_commit": "f81ed7f887659bc336c0272d7a79b8322839d51d",
+  "analysis_commit": "d08ecb3d91adf18ac13ff7a5f4250688c2cd6453",
   "artifacts": {
     "pico-gmr-full-v1": {
       "body_ang_vel.csv": "274fa24cced72f113bfebc8bec26c0f3f74c53b4d69aeb8fd5c00bcc73a2aa61",
@@ -231,5 +231,9 @@
     "policy/release/model_encoder.onnx": "013ab0287236aa2721e13f1e936d699db982302d0de0bfcdae76d5c3245362d3",
     "policy/release/observation_config.yaml": "466d05947c78af6c76388adfb86e3a2a77b2a1d921a64883ed3d085ebf58de1b",
     "planner/target_vel/V2/planner_sonic.onnx": "39b553e197f62f077975ba38512bc04781a3fc37c2af7c6756e04629f760edea"
-  }
+  },
+  "baseline_runtime_source_commit": "124baf842847f19c99b2b4eb8b88916ee053e1b1",
+  "acquisition_harness_commit": "3db3fff",
+  "study_directory": "../motion_exchange/diagnostics/pico/accuracy-v1/trials-v2",
+  "source_change_scope": "Only analysis, experiment-generation and orchestration tools/docs changed during acquisition; no runtime controller or physics changes."
 }
