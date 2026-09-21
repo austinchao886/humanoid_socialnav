@@ -2,7 +2,7 @@
 services:
   pico-live:
     profiles: ["pico-live"]
-    image: social-motion/pico-live:development
+    image: ${PICO_LIVE_IMAGE:-social-motion/pico-live:c620b5a}
     build:
       context: .
       dockerfile: deploy/docker/pico-live.Dockerfile
