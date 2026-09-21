@@ -1,0 +1,28 @@
+import importlib.util,json,tempfile,unittest
+from pathlib import Path
+import numpy as np
+spec=importlib.util.spec_from_file_location('accuracy','/workspace/tools/analysis/pico_accuracy.py');a=importlib.util.module_from_spec(spec);spec.loader.exec_module(a)
+class AccuracyTests(unittest.TestCase):
+ def test_half_preserves_source_and_derivatives(self):
+  root=Path('/motion_exchange');source=a.qpos_from_artifact(root/'pico-gmr-full-v1')[200:-200];half=a.qpos_from_artifact(root/'pico-accuracy-half-v1')[200:-200]
+  np.testing.assert_allclose(half[::2],source,atol=1e-12)
+  q=a.load(root/'pico-accuracy-half-v1/joint_pos.csv');v=a.load(root/'pico-accuracy-half-v1/joint_vel.csv');np.testing.assert_allclose(v,np.gradient(q,.02,axis=0),atol=1e-10)
+  np.testing.assert_allclose(np.linalg.norm(half[:,3:7],axis=1),1,atol=1e-12)
+ def test_world_translation_does_not_change_pelvis_error(self):
+  artifact=Path('/motion_exchange/pico-gmr-full-v1');q=a.qpos_from_artifact(artifact)
+  with tempfile.TemporaryDirectory() as t:
+   t=Path(t);trace=t/'trace.jsonl';report=t/'report.json';out=t/'out.json'
+   rows=[]
+   for f in [0,49,50,199,200,500,1696,1697,1847,1896]:
+    root=q[f,:7].copy();root[0]+=.1
+    rows.append(dict(reference_frame=f,joint_pos_unitree_order=q[f,7:].tolist(),joint_vel_unitree_order=[0.]*29,root_state_w=root.tolist(),max_torque_limit_ratio=0,requested_torque_unitree_order_nm=[0.]*29,applied_torque_unitree_order_nm=[0.]*29))
+   trace.write_text(''.join(json.dumps(d)+'\n' for d in rows));report.write_text(json.dumps(dict(result='COMPLETED',performance={})))
+   a.analyze(artifact,report,trace,out);d=json.loads(out.read_text());self.assertAlmostEqual(d['all']['rmse_deg'],0)
+   for value in d['all']['endpoints'].values():
+    self.assertAlmostEqual(value['world_rmse_m'],.1,places=8);self.assertAlmostEqual(value['pelvis_rmse_m'],0,places=8)
+ def test_hold_windows_are_five_seconds(self):
+  p=Path('/motion_exchange/pico-accuracy-holds-v1');info=json.loads((p/'accuracy_experiment.json').read_text());q=a.qpos_from_artifact(p)
+  for h in info['hold_ranges']:
+   self.assertEqual(h['end']-h['start'],250);self.assertEqual(h['end']-h['evaluate_start'],100)
+   np.testing.assert_allclose(q[h['start']:h['end']],np.repeat(q[h['start']][None],250,axis=0),atol=1e-12)
+if __name__=='__main__':unittest.main()

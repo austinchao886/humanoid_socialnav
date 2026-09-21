@@ -1,0 +1,194 @@
+{
+  "motion_pipeline": "124baf842847f19c99b2b4eb8b88916ee053e1b1",
+  "unitree_sim_isaaclab": "66b6c81d5c08fed1ff95f5e41d7bf92d6466acc6",
+  "GMR": "bb1bbe40774794fceb2a7c579a3464a28e68c844",
+  "GEM": "16bebf402d8893184249ee206d957b8248cd8310",
+  "unitree_sdk2_python": "65691c8a8bc53b98d3976dba4dbf9d5d20b2e7f5",
+  "containers": {
+    "isaac-runner": {
+      "image": "sha256:87513b411f492bc9b1cb0b2fd7be749408c18ec0af30cff8b84cf82bdc4c8aa4",
+      "configured_image": "unitree_sim_isaaclab:isaacsim4.5-gui",
+      "environment": {
+        "ISAAC_RUNNER_MODE": "persistent",
+        "ISAAC_RUNNER_RESTART_DELAY_S": "1",
+        "ISAAC_RUNNER_FOOT_CONTACT_TRACE": "0",
+        "ISAAC_RUNNER_TRACE_HZ": "50",
+        "CUDA_VISIBLE_DEVICES": "0",
+        "SIM_LOWCMD_TOPIC": "rt/socialnav_sim/g1/lowcmd",
+        "DDS_INTERFACE": "lo",
+        "ISAAC_RUNNER_STANDING_COMMAND_TIMEOUT_S": "1.0",
+        "ISAAC_RUNNER_ASSET_PROFILE": "g1_deployment_v1",
+        "DDS_DOMAIN": "42",
+        "ISAAC_RUNNER_ARM_GEOMETRY_TRACE": "0",
+        "ISAAC_RUNNER_VISUAL_STATE_OUTPUT": "/socialnav_humanoid_ws/motion_exchange/.runtime/g1_visual_state.bin",
+        "ISAAC_RUNNER_TASK": "Isaac-Flat-G129-Deployment-V1",
+        "ISAAC_RUNNER_COMMAND_TIMEOUT_S": "0.5",
+        "SIM_LOWSTATE_TOPIC": "rt/socialnav_sim/g1/lowstate"
+      },
+      "mounts": [
+        {
+          "source": "/home/adcs-public-robot/Documents/socialnav_humanoid_ws/motion_pipeline",
+          "destination": "/socialnav_humanoid_ws/motion_pipeline",
+          "read_write": false
+        },
+        {
+          "source": "/home/adcs-public-robot/docker/isaac-sim/cache/glcache",
+          "destination": "/root/.cache/nvidia/GLCache",
+          "read_write": true
+        },
+        {
+          "source": "/home/adcs-public-robot/docker/isaac-sim/cache/computecache",
+          "destination": "/root/.nv/ComputeCache",
+          "read_write": true
+        },
+        {
+          "source": "/home/adcs-public-robot/Documents/socialnav_humanoid_ws",
+          "destination": "/socialnav_humanoid_ws",
+          "read_write": true
+        },
+        {
+          "source": "/home/adcs-public-robot/docker/isaac-sim/cache/kit",
+          "destination": "/isaac-sim/kit/cache",
+          "read_write": true
+        },
+        {
+          "source": "/home/adcs-public-robot/docker/isaac-sim/cache/pip",
+          "destination": "/root/.cache/pip",
+          "read_write": true
+        },
+        {
+          "source": "/home/adcs-public-robot/docker/isaac-sim/data",
+          "destination": "/root/.local/share/ov/data",
+          "read_write": true
+        },
+        {
+          "source": "/home/adcs-public-robot/docker/isaac-sim/logs",
+          "destination": "/root/.nvidia-omniverse/logs",
+          "read_write": true
+        },
+        {
+          "source": "/home/adcs-public-robot/docker/isaac-sim/cache/ov",
+          "destination": "/root/.cache/ov",
+          "read_write": true
+        }
+      ]
+    },
+    "sonic-tracker": {
+      "image": "sha256:43f831dd6465d7ad00d391c97191d5adf4f066241ebb3db32223cd1e4e75489e",
+      "configured_image": "social-motion/sonic:composition-candidate-20260915-08",
+      "environment": {
+        "SONIC_DDS_DOMAIN": "42",
+        "DDS_DOMAIN": "42",
+        "DDS_INTERFACE": "lo"
+      },
+      "mounts": [
+        {
+          "source": "/home/adcs-public-robot/Documents/socialnav_humanoid_ws/unitree_sdk2_python",
+          "destination": "/unitree_sdk2_python",
+          "read_write": false
+        },
+        {
+          "source": "/home/adcs-public-robot/Documents/socialnav_humanoid_ws/motion_pipeline/vendor/GR00T-WholeBodyControl/gear_sonic_deploy/policy",
+          "destination": "/sonic/gear_sonic_deploy/policy",
+          "read_write": true
+        },
+        {
+          "source": "/home/adcs-public-robot/Documents/socialnav_humanoid_ws/motion_pipeline/vendor/GR00T-WholeBodyControl/gear_sonic_deploy/planner",
+          "destination": "/sonic/gear_sonic_deploy/planner",
+          "read_write": true
+        },
+        {
+          "source": "/home/adcs-public-robot/Documents/socialnav_humanoid_ws/motion_pipeline/deploy/config/cyclonedds-localhost.xml",
+          "destination": "/etc/cyclonedds-localhost.xml",
+          "read_write": false
+        },
+        {
+          "source": "/home/adcs-public-robot/Documents/socialnav_humanoid_ws/motion_pipeline/deploy/sonic-prepared-wave.json",
+          "destination": "/etc/sonic/prepared-wave.json",
+          "read_write": false
+        },
+        {
+          "source": "/home/adcs-public-robot/Documents/socialnav_humanoid_ws/motion_exchange",
+          "destination": "/motion_exchange",
+          "read_write": true
+        }
+      ]
+    },
+    "isaac-visualizer": {
+      "image": "sha256:87513b411f492bc9b1cb0b2fd7be749408c18ec0af30cff8b84cf82bdc4c8aa4",
+      "configured_image": "unitree_sim_isaaclab:isaacsim4.5-gui",
+      "environment": {
+        "CUDA_VISIBLE_DEVICES": "0"
+      },
+      "mounts": [
+        {
+          "source": "/home/adcs-public-robot/Documents/socialnav_humanoid_ws/motion_pipeline",
+          "destination": "/socialnav_humanoid_ws/motion_pipeline",
+          "read_write": false
+        },
+        {
+          "source": "/home/adcs-public-robot/Documents/socialnav_humanoid_ws/.cache/isaac-sim-visualizer/cache/glcache",
+          "destination": "/root/.cache/nvidia/GLCache",
+          "read_write": true
+        },
+        {
+          "source": "/home/adcs-public-robot/Documents/socialnav_humanoid_ws/.cache/isaac-sim-visualizer/logs",
+          "destination": "/root/.nvidia-omniverse/logs",
+          "read_write": true
+        },
+        {
+          "source": "/home/adcs-public-robot/Documents/socialnav_humanoid_ws/.cache/isaac-sim-visualizer/cache/kit",
+          "destination": "/isaac-sim/kit/cache",
+          "read_write": true
+        },
+        {
+          "source": "/home/adcs-public-robot/Documents/socialnav_humanoid_ws/.cache/isaac-sim-visualizer/cache/ov",
+          "destination": "/root/.cache/ov",
+          "read_write": true
+        },
+        {
+          "source": "/home/adcs-public-robot/Documents/socialnav_humanoid_ws/.cache/isaac-sim-visualizer/cache/pip",
+          "destination": "/root/.cache/pip",
+          "read_write": true
+        },
+        {
+          "source": "/home/adcs-public-robot/Documents/socialnav_humanoid_ws/.cache/isaac-sim-visualizer/cache/computecache",
+          "destination": "/root/.nv/ComputeCache",
+          "read_write": true
+        },
+        {
+          "source": "/home/adcs-public-robot/Documents/socialnav_humanoid_ws/motion_pipeline/deploy/config/isaaclab.sonic_streaming.kit",
+          "destination": "/isaac-lab/apps/isaaclab.sonic_streaming.kit",
+          "read_write": false
+        },
+        {
+          "source": "/home/adcs-public-robot/Documents/socialnav_humanoid_ws/.cache/isaac-sim-visualizer/data",
+          "destination": "/root/.local/share/ov/data",
+          "read_write": true
+        },
+        {
+          "source": "/home/adcs-public-robot/Documents/socialnav_humanoid_ws",
+          "destination": "/socialnav_humanoid_ws",
+          "read_write": true
+        }
+      ]
+    },
+    "pico-live": {
+      "image": "sha256:2a7cdb017046c524610f729d93a7135468685f5c7d71ea64ea0ff588bf06252d",
+      "configured_image": "social-motion/pico-live:c620b5a",
+      "environment": {},
+      "mounts": [
+        {
+          "source": "/home/adcs-public-robot/Documents/socialnav_humanoid_ws/motion_models",
+          "destination": "/models",
+          "read_write": false
+        },
+        {
+          "source": "/home/adcs-public-robot/Documents/socialnav_humanoid_ws/motion_exchange",
+          "destination": "/motion_exchange",
+          "read_write": true
+        }
+      ]
+    }
+  }
+}
